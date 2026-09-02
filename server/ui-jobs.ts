@@ -72,7 +72,7 @@ async function directoryHash(root: string): Promise<string> {
 }
 
 export function uiSandboxContainerArgs(workspace: string, image: string): string[] {
-  return ['run', '--rm', '--network=none', PODMAN_KEEP_ID, '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-v', `${workspace}:/workspace:Z`, '-w', '/workspace', image, 'sh', '-lc', 'ln -s /opt/project/node_modules /workspace/node_modules && pnpm typecheck && pnpm test && pnpm build && cp -R dist/web .candidate-production && VITE_PREVIEW_MODE=true pnpm exec vite build'];
+  return ['run', '--rm', '--network=none', PODMAN_KEEP_ID, '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-e', 'npm_config_verify_deps_before_run=false', '-v', `${workspace}:/workspace:Z`, '-w', '/workspace', image, 'sh', '-lc', 'ln -s /opt/project/node_modules /workspace/node_modules && pnpm typecheck && pnpm test && pnpm build && cp -R dist/web .candidate-production && VITE_PREVIEW_MODE=true pnpm exec vite build'];
 }
 
 export async function beginUiJob(actor: PersonId, requestId: string, summary: string, requestedBase?: string): Promise<UiJob> {
