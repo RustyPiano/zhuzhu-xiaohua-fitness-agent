@@ -1,9 +1,11 @@
 FROM node:24.19.0-alpine
 RUN apk add --no-cache git ripgrep
-RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
+ENV COREPACK_HOME=/opt/corepack
+RUN corepack enable && corepack prepare pnpm@11.25.0 --activate && chmod -R a+rX "$COREPACK_HOME"
 RUN test "$(id -u node)" = 1000 && test "$(id -g node)" = 1000
 WORKDIR /opt/project
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 USER node
+RUN test "$(pnpm --version)" = 11.25.0
 WORKDIR /workspace
