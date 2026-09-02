@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   AssistantRuntimeProvider, AttachmentPrimitive, ComposerPrimitive, useExternalStoreRuntime, type AttachmentAdapter, type ThreadMessageLike,
 } from '@assistant-ui/react';
@@ -11,6 +12,7 @@ import { CheckIcon, DumbbellIcon, MealIcon, PaperclipIcon, PlusIcon, SendIcon, S
 
 type RequestResponse = { request_id: string; status: string; existing: boolean };
 const AGENT_NAME = '饲养员';
+const MARKDOWN_PLUGINS = [remarkGfm];
 
 export function safeExternalUrl(value?: string): string | null {
   if (!value) return null;
@@ -21,12 +23,13 @@ export function safeExternalUrl(value?: string): string | null {
 }
 
 function MarkdownText({ text }: { text: string }) {
-  return <div className="message-text markdown-text"><Markdown skipHtml components={{
+  return <div className="message-text markdown-text"><Markdown skipHtml remarkPlugins={MARKDOWN_PLUGINS} components={{
     a: ({ href, children }) => {
       const safe = safeExternalUrl(href);
       return safe ? <a href={safe} target="_blank" rel="noopener noreferrer">{children}</a> : <span>{children}</span>;
     },
     img: ({ alt }) => <span className="markdown-image">{alt ? `[图片：${alt}]` : '[图片]'}</span>,
+    table: ({ children }) => <div className="markdown-table"><table>{children}</table></div>,
   }}>{text}</Markdown></div>;
 }
 

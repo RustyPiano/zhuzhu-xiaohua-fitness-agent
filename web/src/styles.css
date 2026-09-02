@@ -289,6 +289,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .markdown-text pre { max-width: 100%; overflow-x: auto; padding: 12px; border-radius: 10px; background: var(--ink); color: var(--card); }
 .markdown-text pre code { padding: 0; background: transparent; color: inherit; }
 .markdown-text a { color: var(--xiaohua-deep); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.markdown-table { max-width: 100%; margin: .55em 0; overflow-x: auto; }
+.markdown-table table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: .92em; }
+.markdown-table th, .markdown-table td { padding: 8px 10px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.markdown-table th { background: var(--card-sunk); font-weight: 750; }
 .markdown-image { color: var(--muted); font-size: .9em; }
 .user-message { flex-direction: row-reverse; }
 .user-message .message-body { align-items: flex-end; }
@@ -297,6 +301,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .user-message .markdown-text a { color: inherit; }
 .user-message .markdown-text code { background: rgba(255, 255, 255, .18); }
 .user-message .markdown-text blockquote { border-left-color: rgba(255, 255, 255, .45); color: inherit; }
+.user-message .markdown-table th, .user-message .markdown-table td { border-color: rgba(255, 255, 255, .38); }
+.user-message .markdown-table th { background: rgba(255, 255, 255, .14); }
 .sent-attachments { display: flex; gap: 8px; margin-bottom: 10px; }
 .sent-attachments img { width: 150px; height: 108px; object-fit: cover; border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); background: var(--card); }
 
@@ -438,8 +444,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
   .meal-who { flex-basis: 40px; }
   .primary-action { width: 100%; min-width: 0; }
 
-  .agent-page { height: calc(100vh - 62px); height: calc(100dvh - 62px); grid-template-columns: 1fr; }
-  .thread-rail { display: none; }
+  .agent-page { height: calc(100vh - 62px); height: calc(100dvh - 62px); grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .thread-rail { padding: 10px 12px 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+  .thread-rail .new-thread { min-height: 44px; padding: 0 14px; }
+  .thread-rail .thread-item { min-width: 0; margin: 0; padding: 7px 11px; }
+  .thread-rail .thread-item .avatar { width: 30px; height: 30px; font-size: 12px; }
+  .thread-rail .budget-card { display: none; }
   .conversation { padding: 12px 10px 12px; }
   .conversation-scroll { padding: 14px 2px; }
   .conversation-empty { min-height: 52vh; align-items: flex-start; text-align: left; padding: 12px; }
