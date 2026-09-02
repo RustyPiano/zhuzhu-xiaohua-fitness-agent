@@ -18,7 +18,7 @@ export function App() {
   if (needsLogin) return <Login onDone={() => void load()}/>;
   if (fatal) return <main className="fatal-state"><h1>暂时无法打开</h1><p>{fatal}</p><button onClick={() => void load()}>重试</button></main>;
   if (!bootstrap) return <main className="app-loading">正在读取已保存状态…</main>;
-  return <div className="app-shell"><header className="topbar"><button className="wordmark" onClick={() => go('today')}><span>珠珠</span><i>与</i><b>小花</b></button><nav aria-label="主要页面"><button className={page === 'today' ? 'active' : ''} onClick={() => go('today')}>今天</button><button className={page === 'agent' ? 'active' : ''} onClick={() => go('agent')}>Agent</button></nav><div className="account-menu"><span className={`account-dot ${bootstrap.actor}`}/><strong>{PERSON_LABEL[bootstrap.actor]}</strong><button onClick={() => void signOut()}>退出</button></div></header>
+  return <div className="app-shell"><header className="topbar"><button className="wordmark" onClick={() => go('today')}><span>珠珠</span><i>与</i><b>小花</b></button><nav aria-label="主要页面"><button className={page === 'today' ? 'active' : ''} onClick={() => go('today')}>今天</button><button className={page === 'agent' ? 'active' : ''} onClick={() => go('agent')}>Agent</button></nav><div className="account-menu"><span className={`account-dot ${bootstrap.actor}`}/><strong>{PERSON_LABEL[bootstrap.actor]}</strong><button onClick={() => void signOut()} disabled={bootstrap.app_version === 'preview'}>退出</button></div></header>
     {page === 'today' ? <TodayPage initialDate={bootstrap.today} onAskAgent={(text) => { setAgentDraft(text); go('agent'); }}/> : <Suspense fallback={<main className="app-loading">正在打开 Agent…</main>}><AgentPage bootstrap={bootstrap} initialText={agentDraft}/></Suspense>} 
   </div>;
 }

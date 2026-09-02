@@ -11,7 +11,7 @@ export const bashTimeoutMs = (seconds?: number): number => Math.min(seconds === 
 
 export function sandboxContainerArgs(workspace: AgentWorkspace, image: string, command: string[]): string[] {
   return ['run', '--rm', '--network=none', '--read-only', '--userns=keep-id', '--cap-drop=ALL', '--security-opt=no-new-privileges',
-    '--pids-limit=256', '--memory=1g', '--cpus=2', '--tmpfs', '/tmp:rw,noexec,nosuid,size=128m', '-e', 'HOME=/tmp/home',
+    '--pids-limit=256', '--memory=1g', '--cpus=2', '--ulimit', 'fsize=2097152:2097152', '--tmpfs', '/tmp:rw,noexec,nosuid,size=128m', '-e', 'HOME=/tmp/home',
     '-e', 'GIT_OPTIONAL_LOCKS=0', '-e', 'GIT_NO_REPLACE_OBJECTS=1',
     '-v', `${path.join(workspace.root, 'AGENTS.md')}:/workspace/AGENTS.md:ro,Z`, '-v', `${workspace.app}:/workspace/app:rw,Z`,
     '-v', `${path.join(workspace.app, '.git')}:/workspace/app/.git:ro,Z`, '-v', `${workspace.data}:/workspace/data:rw,Z`,

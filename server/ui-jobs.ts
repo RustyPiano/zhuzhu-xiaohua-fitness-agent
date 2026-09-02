@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import type { PersonId } from '../shared/contracts.js';
 import { config } from './config.js';
 import { filesystemChanges } from './agent-workspace.js';
+import { loadRequest, saveRequest } from './requests.js';
 
 export type UiJob = {
   id: string; actor: PersonId; request_id: string; branch: string; worktree: string; summary: string;
@@ -13,10 +14,12 @@ export type UiJob = {
 };
 export type Release = { job_id: string; source_revision: string; artifact_path: string; artifact_hash: string };
 export type Deployment = { current: Release | null; previous: Release | null; updated_at: string };
+type UiOperation = { kind: 'publish' | 'rollback'; id: string; base_revision: string; target: Release; previous: Release | null; revision?: string };
 
 const jobsDir = () => path.join(config.runtimeDir, 'ui-jobs');
 const worktreesDir = () => path.join(config.runtimeDir, 'ui-worktrees');
 const deploymentPath = () => path.join(config.runtimeDir, 'deployment.json');
+const operationPath = () => path.join(config.runtimeDir, 'deployment-operation.json');
 
 function command(bin: string, args: string[], cwd: string, timeout = 15 * 60_000): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -33,6 +36,9 @@ async function atomic(target: string, value: unknown): Promise<void> {
   await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 }); await rename(temp, target);
 }
 async function saveJob(job: UiJob): Promise<void> { job.updated_at = new Date().toISOString(); await atomic(path.join(jobsDir(), `${job.id}.json`), job); }
+async function markReceiptPublished(job: UiJob): Promise<void> {
+  try { const request = await loadRequest(job.request_id); for (const message of request.messages) for (const receipt of message.receipts) if (receipt.type === 'ui' && receipt.job_id === job.id) receipt.status = 'published'; await saveRequest(request); } catch { /* request recovery remains independent */ }
+}
 export async function loadUiJob(id: string): Promise<UiJob> {
   if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error('UI job ID 无效'); return JSON.parse(await readFile(path.join(jobsDir(), `${id}.json`), 'utf8')) as UiJob;
 }
@@ -107,10 +113,11 @@ export async function checkUiJob(actor: PersonId, id: string): Promise<UiJob> {
   const temporary = path.join(config.runtimeDir, 'ui-checks', `${id}-${randomUUID()}`); await mkdir(temporary, { recursive: true });
   try {
     await cp(job.worktree, temporary, { recursive: true, filter: (source) => !source.includes(`${path.sep}.git`) && !source.includes(`${path.sep}node_modules`) && !source.includes(`${path.sep}.local`) });
-    const output = await command('podman', ['run', '--rm', '--network=none', '--userns=keep-id', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-v', `${temporary}:/workspace:Z`, '-w', '/workspace', config.uiSandboxImage, 'sh', '-lc', 'ln -s /opt/project/node_modules /workspace/node_modules && pnpm typecheck && pnpm test && pnpm build'], config.appRepo);
+    const output = await command('podman', ['run', '--rm', '--network=none', '--userns=keep-id', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-v', `${temporary}:/workspace:Z`, '-w', '/workspace', config.uiSandboxImage, 'sh', '-lc', 'ln -s /opt/project/node_modules /workspace/node_modules && pnpm typecheck && pnpm test && pnpm build && cp -R dist/web .candidate-production && VITE_PREVIEW_MODE=true pnpm exec vite build'], config.appRepo);
     const sourceHash = await treeHash(job.worktree); const built = path.join(temporary, 'dist', 'web');
     await stat(built); const release = path.join(config.releasesDir, 'candidates', id); await rm(release, { recursive: true, force: true }); await mkdir(path.dirname(release), { recursive: true }); await cp(built, release, { recursive: true });
-    job.status = 'passed'; job.source_hash = sourceHash; job.artifact_hash = await directoryHash(built); job.checks = ['typecheck', 'unit tests', 'build']; job.error = output.slice(-4_000) || null;
+    await cp(path.join(temporary, '.candidate-production'), path.join(release, 'production'), { recursive: true });
+    job.status = 'passed'; job.source_hash = sourceHash; job.artifact_hash = await directoryHash(path.join(release, 'production')); job.checks = ['typecheck', 'unit tests', 'production build', 'preview build']; job.error = output.slice(-4_000) || null;
   } catch (error) { job.status = 'failed'; job.error = error instanceof Error ? error.message : '检查失败'; }
   finally { await rm(temporary, { recursive: true, force: true }); await saveJob(job); }
   return job;
@@ -123,23 +130,45 @@ async function readDeployment(): Promise<Deployment> {
     return value as Deployment;
   } catch { return { current: null, previous: null, updated_at: new Date().toISOString() }; }
 }
-export async function currentUiSourceRevision(): Promise<string> { return (await readDeployment()).current?.source_revision ?? command('git', ['rev-parse', 'HEAD'], config.appRepo); }
+export async function currentUiSourceRevision(): Promise<string> { return command('git', ['rev-parse', 'HEAD'], config.appRepo); }
+async function findOperationRevision(operation: UiOperation): Promise<string | null> {
+  if (operation.revision) return operation.revision;
+  const trailer = operation.kind === 'publish' ? `Ui-Job-Id: ${operation.id}` : `Ui-Rollback-Id: ${operation.id}`;
+  const found = await command('git', ['log', '-n', '200', '--format=%H', '--fixed-strings', '--grep', trailer], config.appRepo).catch(() => ''); return found.split('\n').find(Boolean) ?? null;
+}
+export async function recoverUiDeployment(): Promise<void> {
+  let operation: UiOperation; try { operation = JSON.parse(await readFile(operationPath(), 'utf8')) as UiOperation; } catch { return; }
+  const revision = await findOperationRevision(operation);
+  if (!revision) { await rm(operationPath(), { force: true }); return; }
+  if (await directoryHash(operation.target.artifact_path) !== operation.target.artifact_hash) throw new Error('待恢复的 UI 产物校验失败');
+  const merged = await command('git', ['merge-base', '--is-ancestor', revision, 'HEAD'], config.appRepo).then(() => true).catch(() => false);
+  if (!merged) { if (await command('git', ['rev-parse', 'HEAD'], config.appRepo) !== operation.base_revision) throw new Error('UI 恢复时应用源码已分叉'); await command('git', ['merge', '--ff-only', revision], config.appRepo); }
+  await atomic(deploymentPath(), { current: { ...operation.target, source_revision: revision }, previous: operation.previous, updated_at: new Date().toISOString() } satisfies Deployment);
+  if (operation.kind === 'publish') { const job = await loadUiJob(operation.id); job.status = 'published'; await saveJob(job); await markReceiptPublished(job); }
+  await rm(operationPath(), { force: true });
+}
 export async function publishUiJob(actor: PersonId, id: string): Promise<UiJob> {
-  const job = await loadUiJob(id); if (job.actor !== actor) throw new Error('无权发布此候选'); if (job.status !== 'passed' || !job.source_hash || !job.artifact_hash) throw new Error('候选尚未通过固定检查');
+  await recoverUiDeployment(); const job = await loadUiJob(id); if (job.actor !== actor) throw new Error('无权发布此候选');
+  if ((await readDeployment()).current?.job_id === id) { job.status = 'published'; await saveJob(job); await markReceiptPublished(job); return job; }
+  if (job.status !== 'passed' || !job.source_hash || !job.artifact_hash) throw new Error('候选尚未通过固定检查');
   if (await treeHash(job.worktree) !== job.source_hash) throw new Error('候选源码在检查后已改变，必须重新检查');
   if (await command('git', ['rev-parse', 'HEAD'], config.appRepo) !== job.base_revision) throw new Error('应用源码已更新，请重新生成候选');
+  const previous = await readDeployment(); const target: Release = { job_id: id, source_revision: '', artifact_path: path.join(config.releasesDir, 'candidates', id, 'production'), artifact_hash: job.artifact_hash };
+  const operation: UiOperation = { kind: 'publish', id, base_revision: job.base_revision, target, previous: previous.current }; await atomic(operationPath(), operation);
   await command('git', ['add', '-A', '--', 'web'], job.worktree);
-  await command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-m', `ui: ${job.summary}`], job.worktree);
+  await command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-m', `ui: ${job.summary}`, '-m', `Ui-Job-Id: ${id}`], job.worktree);
+  operation.revision = await command('git', ['rev-parse', 'HEAD'], job.worktree); await atomic(operationPath(), operation);
   await command('git', ['merge', '--ff-only', job.branch], config.appRepo);
-  const revision = await command('git', ['rev-parse', 'HEAD'], config.appRepo); const previous = await readDeployment();
-  const deployment: Deployment = { current: { job_id: id, source_revision: revision, artifact_path: path.join(config.releasesDir, 'candidates', id), artifact_hash: job.artifact_hash }, previous: previous.current, updated_at: new Date().toISOString() };
-  await atomic(deploymentPath(), deployment); job.status = 'published'; await saveJob(job); return job;
+  const revision = await command('git', ['rev-parse', 'HEAD'], config.appRepo);
+  const deployment: Deployment = { current: { ...target, source_revision: revision }, previous: previous.current, updated_at: new Date().toISOString() };
+  await atomic(deploymentPath(), deployment); job.status = 'published'; await saveJob(job); await markReceiptPublished(job); await rm(operationPath(), { force: true }); return job;
 }
 
 export async function rollbackUi(): Promise<Deployment> {
-  const deployment = await readDeployment(); if (!deployment.previous) throw new Error('没有可回滚的上一个前端产物');
+  await recoverUiDeployment(); const deployment = await readDeployment(); if (!deployment.previous) throw new Error('没有可回滚的上一个前端产物');
   if (await directoryHash(deployment.previous.artifact_path) !== deployment.previous.artifact_hash) throw new Error('上一个前端产物校验失败，拒绝回滚');
-  const worktree = path.join(worktreesDir(), `rollback-${randomUUID()}`); const branch = `rollback/${randomUUID()}`; const head = await command('git', ['rev-parse', 'HEAD'], config.appRepo);
+  const operationId = randomUUID(); const head = await command('git', ['rev-parse', 'HEAD'], config.appRepo); const operation: UiOperation = { kind: 'rollback', id: operationId, base_revision: head, target: deployment.previous, previous: deployment.current }; await atomic(operationPath(), operation);
+  const worktree = path.join(worktreesDir(), `rollback-${operationId}`); const branch = `rollback/${operationId}`;
   await command('git', ['worktree', 'add', '-b', branch, worktree, head], config.appRepo);
   try {
     for (const relative of ['web/src', 'web/public']) {
@@ -147,10 +176,10 @@ export async function rollbackUi(): Promise<Deployment> {
       await command('git', ['checkout', deployment.previous.source_revision, '--', relative], worktree).catch(() => undefined);
     }
     await command('git', ['add', '-A', '--', 'web'], worktree);
-    await command('git', ['commit', '-m', `ui: rollback to ${deployment.previous.job_id}`], worktree);
-    const revision = await command('git', ['rev-parse', 'HEAD'], worktree); await command('git', ['merge', '--ff-only', revision], config.appRepo);
+    await command('git', ['commit', '-m', `ui: rollback to ${deployment.previous.job_id}`, '-m', `Ui-Rollback-Id: ${operationId}`], worktree);
+    const revision = await command('git', ['rev-parse', 'HEAD'], worktree); operation.revision = revision; await atomic(operationPath(), operation); await command('git', ['merge', '--ff-only', revision], config.appRepo);
     const restored = { ...deployment.previous, source_revision: revision };
-    const next: Deployment = { current: restored, previous: deployment.current, updated_at: new Date().toISOString() }; await atomic(deploymentPath(), next); return next;
+    const next: Deployment = { current: restored, previous: deployment.current, updated_at: new Date().toISOString() }; await atomic(deploymentPath(), next); await rm(operationPath(), { force: true }); return next;
   } finally { await command('git', ['worktree', 'remove', '--force', worktree], config.appRepo).catch(() => undefined); }
 }
 export async function currentWebRoot(): Promise<string> {

@@ -105,8 +105,12 @@ async function listFiles(root: string, relative = '', ignore: (relative: string)
   return files;
 }
 
-export async function filesystemChanges(baseRoot: string, candidateRoot: string, include: (relative: string) => boolean, ignored: (relative: string) => boolean = (relative) => relative === '.git' || relative.startsWith('.git/')): Promise<string[]> {
+export async function filesystemChanges(baseRoot: string, candidateRoot: string, include: (relative: string) => boolean, ignored: (relative: string) => boolean = (relative) => relative === '.git' || relative.startsWith('.git/'), limits = { maxFileBytes: 2 * 1024 * 1024, maxTotalBytes: 100 * 1024 * 1024, maxFiles: 20_000 }): Promise<string[]> {
   const [base, candidate] = await Promise.all([listFiles(baseRoot, '', ignored), listFiles(candidateRoot, '', ignored)]);
+  if (candidate.length > limits.maxFiles) throw new Error(`候选文件数超过 ${limits.maxFiles}`);
+  let total = 0;
+  for (const relative of candidate) { const size = (await lstat(path.join(candidateRoot, relative))).size; if (size > limits.maxFileBytes) throw new Error(`${relative} 超过候选单文件限制`); total += size; }
+  if (total > limits.maxTotalBytes) throw new Error('候选工作区超过总大小限制');
   const paths = [...new Set([...base, ...candidate])].filter(include).sort(); const changed: string[] = [];
   for (const relative of paths) {
     let before: Buffer | null = null; let after: Buffer | null = null;
@@ -156,7 +160,7 @@ export async function finalizeDataWorkspace(workspace: AgentWorkspace, actor: Pe
   await git(['worktree', 'add', '--detach', trusted, workspace.dataBaseRevision], config.dataRepo);
   try {
     const include = (relative: string) => { try { assertAllowedDataPath(relative); return true; } catch { return false; } };
-    const paths = await filesystemChanges(trusted, workspace.data, include);
+    const paths = await filesystemChanges(trusted, workspace.data, include, undefined, { maxFileBytes: 2 * 1024 * 1024, maxTotalBytes: 10 * 1024 * 1024, maxFiles: 2_000 });
     if (!paths.length) return null;
     if (paths.length > 20) throw new Error('一次最多修改 20 个数据文件');
     const now = new Date().toISOString(); const allowedAttachments = new Set(attachmentIds);

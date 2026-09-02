@@ -18,13 +18,13 @@ function Receipt({ receipt }: { receipt: ToolReceipt }) {
 }
 
 function UiReceipt({ receipt }: { receipt: Extract<ToolReceipt, { type: 'ui' }> }) {
-  const [publishing, setPublishing] = useState(false); const [failure, setFailure] = useState('');
+  const [status, setStatus] = useState(receipt.status); const [publishing, setPublishing] = useState(false); const [failure, setFailure] = useState('');
   async function publish() {
     setPublishing(true); setFailure('');
-    try { await api(`/api/ui-jobs/${receipt.job_id}/publish`, { method: 'POST', body: '{}' }); window.location.reload(); }
+    try { await api(`/api/ui-jobs/${receipt.job_id}/publish`, { method: 'POST', body: '{}' }); setStatus('published'); setPublishing(false); }
     catch (error) { setFailure(error instanceof Error ? error.message : '发布失败'); setPublishing(false); }
   }
-  return <div className="receipt ui-receipt"><span>界面修改 · {receipt.status}</span><strong>{receipt.summary}</strong><div className="receipt-actions">{receipt.preview_url ? <a href={receipt.preview_url} target="_blank" rel="noopener noreferrer">打开隔离预览</a> : null}{receipt.status === 'passed' ? <button type="button" onClick={publish} disabled={publishing}>{publishing ? '发布中…' : '发布此版本'}</button> : null}</div>{failure ? <small role="alert">{failure}</small> : null}</div>;
+  return <div className="receipt ui-receipt"><span>界面修改 · {status}</span><strong>{receipt.summary}</strong><div className="receipt-actions">{receipt.preview_url ? <a href={receipt.preview_url} target="_blank" rel="noopener noreferrer">打开隔离预览</a> : null}{status === 'passed' ? <button type="button" onClick={publish} disabled={publishing}>{publishing ? '发布中…' : '发布此版本'}</button> : null}{status === 'published' ? <button type="button" onClick={() => window.location.reload()}>刷新查看</button> : null}</div>{failure ? <small role="alert">{failure}</small> : null}</div>;
 }
 
 function MessageRow({ message, actor }: { message: ThreadMessage; actor: Bootstrap['actor'] }) {
@@ -59,13 +59,15 @@ function AgentRuntime({ bootstrap, initialText }: { bootstrap: Bootstrap; initia
       stream.addEventListener('data_committed', (event) => setLiveReceipt(JSON.parse((event as MessageEvent).data) as ToolReceipt));
       stream.addEventListener('done', () => finish('done')); stream.onerror = () => finish('disconnected');
     });
+    let terminal: { status: string; error: string | null } | null = null;
     if (outcome === 'disconnected') {
       for (;;) {
-        const request = await api<{ status: string }>(`/api/requests/${id}`);
-        if (['done', 'error', 'cancelled', 'interrupted'].includes(request.status)) break;
+        const request = await api<{ status: string; error: string | null }>(`/api/requests/${id}`);
+        if (['done', 'error', 'cancelled', 'interrupted'].includes(request.status)) { terminal = request; break; }
         await new Promise((resolve) => window.setTimeout(resolve, 1_500));
       }
-    }
+    } else terminal = await api<{ status: string; error: string | null }>(`/api/requests/${id}`);
+    if (terminal && ['error', 'interrupted'].includes(terminal.status)) setError(terminal.error ?? '请求未完成');
     await refresh(); setRunning(false); setActiveRequest(null); setStreamText(''); setToolProgress([]); setLiveReceipt(null);
   }, [refresh]);
 

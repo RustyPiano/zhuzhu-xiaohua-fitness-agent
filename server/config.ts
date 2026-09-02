@@ -7,6 +7,9 @@ const number = (name: string, fallback: number) => {
   if (!Number.isFinite(value)) throw new Error(`${name} 必须是有限数值`);
   return value;
 };
+const thinkingLevels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+const modelThinkingLevel = process.env.MODEL_THINKING_LEVEL ?? 'low';
+if (!thinkingLevels.includes(modelThinkingLevel as typeof thinkingLevels[number])) throw new Error('MODEL_THINKING_LEVEL 无效');
 
 export const config = {
   port: number('PORT', 8787),
@@ -24,6 +27,8 @@ export const config = {
   modelProvider: process.env.MODEL_PROVIDER ?? null,
   modelId: process.env.MODEL_ID ?? null,
   modelKey: process.env.MODEL_API_KEY ?? null,
+  modelBaseUrl: process.env.MODEL_BASE_URL ?? null,
+  modelThinkingLevel: modelThinkingLevel as typeof thinkingLevels[number],
   agentSandboxImage: process.env.AGENT_SANDBOX_IMAGE ?? process.env.UI_SANDBOX_IMAGE ?? null,
   uiSandboxImage: process.env.UI_SANDBOX_IMAGE ?? null,
   devAuth: process.env.NODE_ENV !== 'production' && process.env.DEV_AUTH === 'true',

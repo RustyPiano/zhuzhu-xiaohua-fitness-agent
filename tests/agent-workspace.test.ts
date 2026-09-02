@@ -22,6 +22,11 @@ afterEach(async () => {
 });
 
 describe('isolated Agent workspace finalizer', () => {
+  it('rejects oversized candidate files before reading them', async () => {
+    temporary = await mkdtemp(path.join(os.tmpdir(), 'fitness-agent-workspace-')); const base = path.join(temporary, 'base'); const candidate = path.join(temporary, 'candidate'); await mkdir(base); await mkdir(candidate); await writeFile(path.join(candidate, 'large.ts'), Buffer.alloc(2 * 1024 * 1024 + 1));
+    const { filesystemChanges } = await import('../server/agent-workspace.js'); await expect(filesystemChanges(base, candidate, () => true)).rejects.toThrow('单文件限制');
+  });
+
   it('commits validated data and stamps new record provenance on the host', async () => {
     temporary = await mkdtemp(path.join(os.tmpdir(), 'fitness-agent-workspace-'));
     const app = path.join(temporary, 'app'); await mkdir(app); await initApp(app);

@@ -11,7 +11,7 @@ import { webBudgetStatus } from './exa.js';
 import { runAgent } from './agent.js';
 import { cancelRequest, createRequest, enqueue, listActorMessages, loadRequest, markInterruptedRequests, markNewThread, subscribe } from './requests.js';
 import { assertAttachmentAccess, readAttachmentBytes, readAttachmentMeta, saveUpload, uploadLimits } from './uploads.js';
-import { currentWebRoot, deploymentInfo, publishUiJob, rollbackUi } from './ui-jobs.js';
+import { currentWebRoot, deploymentInfo, publishUiJob, recoverUiDeployment, rollbackUi } from './ui-jobs.js';
 import { DATE_RE } from '../shared/validation.js';
 
 const app = new Hono();
@@ -130,5 +130,5 @@ app.get('*', async (c) => {
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]!)); }
 
-await ensureDataRepo(businessDate()); await markInterruptedRequests();
+await ensureDataRepo(businessDate()); await markInterruptedRequests(); await recoverUiDeployment();
 serve({ fetch: app.fetch, port: config.port, hostname: '127.0.0.1' }, (info) => console.log(`Fitness Agent listening on http://127.0.0.1:${info.port}`));

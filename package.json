@@ -11,6 +11,7 @@
     "dev": "tsx scripts/dev.ts",
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
+    "test:integration": "tsx scripts/check-integrations.ts",
     "test:e2e": "playwright test",
     "test:e2e:bundled": "USE_BUNDLED_CHROMIUM=true playwright test",
     "build": "vite build && tsc -p tsconfig.server.json",

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Type } from 'typebox';
 import type { PersonId, ToolReceipt } from '../shared/contracts.js';
@@ -27,6 +27,9 @@ export async function runAgent(initial: RequestRecord, signal: AbortSignal): Pro
   const pi = await import('@earendil-works/pi-coding-agent'); const thread = await loadThreadState(initial.actor);
   const agentDir = path.join(config.runtimeDir, 'pi-agent'); const sessionDir = thread.session_generation ? path.join(config.runtimeDir, 'sessions', initial.actor, thread.session_generation) : path.join(config.runtimeDir, 'sessions', initial.actor);
   await mkdir(agentDir, { recursive: true }); await mkdir(sessionDir, { recursive: true });
+  const modelsPath = path.join(agentDir, 'models.json');
+  if (config.modelBaseUrl) await writeFile(modelsPath, `${JSON.stringify({ providers: { [config.modelProvider]: { baseUrl: config.modelBaseUrl } } }, null, 2)}\n`, { mode: 0o600 });
+  else await rm(modelsPath, { force: true });
   const receipts: ToolReceipt[] = [];
   const searchTool = pi.defineTool({
     name: 'web_search', label: '公开资料搜索', description: '仅在确需新资料时搜索公开网页；不要包含私人记录。', parameters: Type.Object({ query: Type.String() }),
@@ -39,15 +42,15 @@ export async function runAgent(initial: RequestRecord, signal: AbortSignal): Pro
   const settings = pi.SettingsManager.inMemory({ compaction: { enabled: true }, retry: { enabled: true, maxRetries: 1 } });
   const loader = new pi.DefaultResourceLoader({ cwd: workspace.root, agentDir, settingsManager: settings, appendSystemPrompt: ['你是珠珠与小花共同使用的私人健身 Coding Agent，显示名称是“饲养员”。使用工作区 AGENTS.md 的规则，回答简洁、诚实、使用中文。'] });
   await loader.reload();
-  const modelRuntime = await pi.ModelRuntime.create({ authPath: path.join(agentDir, 'auth.json'), modelsPath: path.join(agentDir, 'models.json') });
+  const modelRuntime = await pi.ModelRuntime.create({ authPath: path.join(agentDir, 'auth.json'), modelsPath });
   await modelRuntime.setRuntimeApiKey(config.modelProvider, config.modelKey);
   const model = modelRuntime.getModel(config.modelProvider, config.modelId);
   if (!model) throw new Error(`Pi 未找到模型 ${config.modelProvider}/${config.modelId}`);
   const sessionManager = pi.SessionManager.continueRecent(workspace.root, sessionDir);
-  const { session } = await pi.createAgentSession({ cwd: workspace.root, agentDir, modelRuntime, model, thinkingLevel: 'low', resourceLoader: loader, settingsManager: settings, sessionManager, tools: ['read', 'write', 'edit', 'bash', 'grep', 'find', 'ls', 'web_search', 'web_read'], customTools: [...createSandboxTools(pi, workspace), searchTool, webReadTool] });
+  const { session } = await pi.createAgentSession({ cwd: workspace.root, agentDir, modelRuntime, model, thinkingLevel: config.modelThinkingLevel, resourceLoader: loader, settingsManager: settings, sessionManager, tools: ['read', 'write', 'edit', 'bash', 'grep', 'find', 'ls', 'web_search', 'web_read'], customTools: [...createSandboxTools(pi, workspace), searchTool, webReadTool] });
   const runtime = session as unknown as PiSession;
-  const images = [] as Array<{ type: 'image'; source: { type: 'base64'; mediaType: string; data: string } }>;
-  for (const id of initial.attachment_ids) { const { meta, bytes } = await readAttachmentBytes(initial.actor, id); images.push({ type: 'image', source: { type: 'base64', mediaType: meta.mime, data: bytes.toString('base64') } }); }
+  const images = [] as Array<{ type: 'image'; mimeType: string; data: string }>;
+  for (const id of initial.attachment_ids) { const { meta, bytes } = await readAttachmentBytes(initial.actor, id); images.push({ type: 'image', mimeType: meta.mime, data: bytes.toString('base64') }); }
   let response = '';
   const unsubscribe = runtime.subscribe((event) => {
     if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') { const delta = String(event.assistantMessageEvent.delta ?? ''); response += delta; emit(initial.id, 'text_delta', { delta }); }

@@ -83,6 +83,7 @@ export function enqueue(id: string, runner: (record: RequestRecord, signal: Abor
       const latest = await loadRequest(id);
       latest.status = controller.signal.aborted ? 'cancelled' : 'error';
       latest.error = error instanceof Error ? error.message : '请求失败';
+      if (!latest.messages.some((message) => message.role === 'assistant' && message.status === 'error')) latest.messages.push({ id: randomUUID(), role: 'assistant', text: latest.error, attachment_ids: [], receipts: [], created_at: new Date().toISOString(), status: 'error' });
       await saveRequest(latest); emit(id, 'error', { error: latest.error });
     } finally { controllers.delete(id); }
   }).catch(() => undefined);
