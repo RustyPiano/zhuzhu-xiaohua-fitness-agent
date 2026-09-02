@@ -6,6 +6,7 @@ import type { PersonId } from '../shared/contracts.js';
 import { config } from './config.js';
 import { filesystemChanges } from './agent-workspace.js';
 import { loadRequest, saveRequest } from './requests.js';
+import { PODMAN_KEEP_ID } from './podman.js';
 
 export type UiJob = {
   id: string; actor: PersonId; request_id: string; branch: string; worktree: string; summary: string;
@@ -70,6 +71,10 @@ async function directoryHash(root: string): Promise<string> {
   await visit(root); return hash.digest('hex');
 }
 
+export function uiSandboxContainerArgs(workspace: string, image: string): string[] {
+  return ['run', '--rm', '--network=none', PODMAN_KEEP_ID, '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-v', `${workspace}:/workspace:Z`, '-w', '/workspace', image, 'sh', '-lc', 'ln -s /opt/project/node_modules /workspace/node_modules && pnpm typecheck && pnpm test && pnpm build && cp -R dist/web .candidate-production && VITE_PREVIEW_MODE=true pnpm exec vite build'];
+}
+
 export async function beginUiJob(actor: PersonId, requestId: string, summary: string, requestedBase?: string): Promise<UiJob> {
   if (!config.uiSandboxImage) throw new Error('未配置固定 UI_SANDBOX_IMAGE，前端代码执行已关闭');
   const baseRevision = requestedBase ?? await currentUiSourceRevision();
@@ -113,7 +118,7 @@ export async function checkUiJob(actor: PersonId, id: string): Promise<UiJob> {
   const temporary = path.join(config.runtimeDir, 'ui-checks', `${id}-${randomUUID()}`); await mkdir(temporary, { recursive: true });
   try {
     await cp(job.worktree, temporary, { recursive: true, filter: (source) => !source.includes(`${path.sep}.git`) && !source.includes(`${path.sep}node_modules`) && !source.includes(`${path.sep}.local`) });
-    const output = await command('podman', ['run', '--rm', '--network=none', '--userns=keep-id', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-v', `${temporary}:/workspace:Z`, '-w', '/workspace', config.uiSandboxImage, 'sh', '-lc', 'ln -s /opt/project/node_modules /workspace/node_modules && pnpm typecheck && pnpm test && pnpm build && cp -R dist/web .candidate-production && VITE_PREVIEW_MODE=true pnpm exec vite build'], config.appRepo);
+    const output = await command('podman', uiSandboxContainerArgs(temporary, config.uiSandboxImage), config.appRepo);
     const sourceHash = await treeHash(job.worktree); const built = path.join(temporary, 'dist', 'web');
     await stat(built); const release = path.join(config.releasesDir, 'candidates', id); await rm(release, { recursive: true, force: true }); await mkdir(path.dirname(release), { recursive: true }); await cp(built, release, { recursive: true });
     await cp(path.join(temporary, '.candidate-production'), path.join(release, 'production'), { recursive: true });
