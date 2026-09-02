@@ -19,7 +19,7 @@ export function sandboxContainerArgs(workspace: AgentWorkspace, image: string, c
 }
 
 function execute(workspace: AgentWorkspace, command: string[], options: { input?: Buffer; signal?: AbortSignal; timeout?: number; onData?: (data: Buffer) => void } = {}): Promise<ExecResult> {
-  if (!config.agentSandboxImage) throw new Error('未配置 AGENT_SANDBOX_IMAGE，原生工具已关闭');
+  if (!config.agentSandboxImage) throw new Error('Agent 暂不可用');
   return new Promise((resolve, reject) => {
     const child = spawn('podman', sandboxContainerArgs(workspace, config.agentSandboxImage!, command), { stdio: [options.input ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
     const stdout: Buffer[] = []; const stderr: Buffer[] = []; let captured = 0; const maxCapture = 4 * 1024 * 1024;

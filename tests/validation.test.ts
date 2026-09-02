@@ -24,4 +24,10 @@ describe('data boundary', () => {
     expect(() => validateBusinessJson('logs/2026-09-01/zhuzhu.json', { ...emptyLog('2026-09-01', 'zhuzhu'), sets: ['invalid'] })).toThrow('结构无效');
     expect(() => validateBusinessJson('logs/2026-09-01/zhuzhu.json', { ...emptyLog('2026-09-01', 'zhuzhu'), measurements: [{ weight: 60 }] })).toThrow('结构无效');
   });
+
+  it('rejects an excessive planned set count', () => {
+    const person = { nutrition: { targets: { kcal: null, protein_g: null, carbs_g: null, fat_g: null }, meals: [] }, training: { type: null, cardio: null, exercises: [{ exercise_id: 'squat', name: '深蹲', equipment: null, sets: 1_000_000, reps: null, load: null, load_unit: null, rest_seconds: null, notes: [] }] } };
+    const plan = { schema_version: 1, date: '2026-09-01', status: 'active', title: null, people: { zhuzhu: person, xiaohua: person }, notes: [] };
+    expect(() => validateBusinessJson('plans/2026-09-01.json', plan)).toThrow('结构无效');
+  });
 });

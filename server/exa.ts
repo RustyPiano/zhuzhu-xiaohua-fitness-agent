@@ -98,8 +98,9 @@ export async function webSearch(requestId: string, actor: PersonId, query: strin
     const results = Array.isArray(response.results) ? response.results : [];
     const receipts = results.slice(0, 5).flatMap((raw): ToolReceipt[] => {
       const item = raw as Record<string, unknown>; if (typeof item.url !== 'string') return [];
+      let url: URL; try { url = assertPublicUrl(item.url); } catch { return []; }
       const highlights = Array.isArray(item.highlights) ? item.highlights.filter((x): x is string => typeof x === 'string').join(' ') : '';
-      return [{ type: 'source', status: 'searched', title: typeof item.title === 'string' ? item.title : item.url, url: item.url, snippet: highlights.slice(0, 1500) }];
+      return [{ type: 'source', status: 'searched', title: typeof item.title === 'string' ? item.title : url.href, url: url.href, snippet: highlights.slice(0, 1500) }];
     });
     record.tool_cache[key] = receipts; await saveRequest(record); return receipts;
   } catch (error) { call.status = 'failed'; await saveRequest(record); throw error; }

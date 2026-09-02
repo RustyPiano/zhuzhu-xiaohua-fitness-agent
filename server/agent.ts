@@ -16,11 +16,11 @@ type PiSession = { prompt: (text: string, options?: Record<string, unknown>) => 
 export async function runAgent(initial: RequestRecord, signal: AbortSignal): Promise<void> {
   if (config.devMockAgent) {
     const record = await loadRequest(initial.id);
-    record.messages.push({ id: randomUUID(), role: 'assistant', text: '这是开发环境的明确替身回复；未调用模型，也没有保存任何业务数据。配置真实模型和 Agent 沙箱后会启用 Pi 会话、图片理解与原生工具。', attachment_ids: [], receipts: [], created_at: new Date().toISOString(), status: 'complete' });
+    record.messages.push({ id: randomUUID(), role: 'assistant', text: '收到，我在这里。', attachment_ids: [], receipts: [], created_at: new Date().toISOString(), status: 'complete' });
     await saveRequest(record); return;
   }
   if (!config.modelProvider || !config.modelId || !config.modelKey) throw new Error('未配置支持图片和工具调用的模型');
-  if (!config.agentSandboxImage) throw new Error('未配置 AGENT_SANDBOX_IMAGE，不会在宿主进程权限下开放 Pi 工具');
+  if (!config.agentSandboxImage) throw new Error('Agent 暂不可用');
 
   const workspace = await prepareAgentWorkspace(initial.actor, initial.attachment_ids, await currentUiSourceRevision());
   const pending = await loadRequest(initial.id); pending.workspace_base_revision = workspace.dataBaseRevision; await saveRequest(pending);

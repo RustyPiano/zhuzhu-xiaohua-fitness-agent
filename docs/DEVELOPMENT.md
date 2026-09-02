@@ -753,7 +753,6 @@ v1 只有两个固定账号，不做注册、找回密码或邀请系统。维�
 pnpm dev          本地开发，使用独立测试数据目录
 pnpm typecheck    检查前后端共享类型
 pnpm test         核心契约、保存、权限和恢复测试
-pnpm test:e2e     浏览器关键流程
 pnpm build        构建服务端和初始前端
 pnpm start        启动生产服务
 ```

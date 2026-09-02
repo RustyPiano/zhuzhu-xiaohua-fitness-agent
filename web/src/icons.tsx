@@ -10,3 +10,6 @@ export const SendIcon = (props: Props) => <svg {...base} {...props}><path d="m22
 export const PlusIcon = (props: Props) => <svg {...base} {...props}><path d="M12 5v14M5 12h14"/></svg>;
 export const CheckIcon = (props: Props) => <svg {...base} {...props}><path d="m5 12 4 4L19 6"/></svg>;
 export const ChevronIcon = (props: Props) => <svg {...base} {...props}><path d="m9 18 6-6-6-6"/></svg>;
+export const EditIcon = (props: Props) => <svg {...base} {...props}><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>;
+export const StopIcon = (props: Props) => <svg {...base} {...props}><rect x="7" y="7" width="10" height="10" rx="1"/></svg>;
+export const SproutIcon = (props: Props) => <svg {...base} {...props}><path d="M12 21v-7"/><path d="M12 14c0-3 2-5 5-5 0 3-2 5-5 5Z"/><path d="M12 15c0-2.5-1.8-4.5-4.5-4.5C7.5 13 9.3 15 12 15Z"/><path d="M8 21h8"/></svg>;

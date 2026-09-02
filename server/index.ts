@@ -35,10 +35,10 @@ app.get('/api/bootstrap', async (c) => {
   const realAgentConfigured = modelConfigured && Boolean(config.agentSandboxImage); const agentConfigured = config.devMockAgent || realAgentConfigured;
   return c.json({
     actor: c.get('actor'), timezone: config.timezone, today: businessDate(), app_version: '1.0.0',
-    agent: { configured: agentConfigured, reason: agentConfigured ? null : !modelConfigured ? '未配置支持图片和工具调用的模型' : '未配置 AGENT_SANDBOX_IMAGE' },
-    image: { configured: modelConfigured, ...uploadLimits, reason: modelConfigured ? null : '未配置支持图片和工具调用的模型' },
-    web: { provider: 'exa', configured: Boolean(config.exaKey), reason: config.exaKey ? null : '未配置 EXA_API_KEY', budget },
-    ui_editing: { configured: realAgentConfigured && Boolean(config.uiSandboxImage), reason: !realAgentConfigured ? '当前真实 Agent 不可用' : config.uiSandboxImage ? null : '未配置固定 rootless Podman 构建镜像' },
+    agent: { configured: agentConfigured, reason: agentConfigured ? null : 'Agent 暂不可用' },
+    image: { configured: modelConfigured, ...uploadLimits, reason: modelConfigured ? null : '图片功能暂不可用' },
+    web: { provider: 'exa', configured: Boolean(config.exaKey), reason: config.exaKey ? null : '联网暂不可用', budget },
+    ui_editing: { configured: realAgentConfigured && Boolean(config.uiSandboxImage), reason: realAgentConfigured && config.uiSandboxImage ? null : '界面更新暂不可用' },
   });
 });
 

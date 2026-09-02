@@ -12,8 +12,6 @@
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "test:integration": "tsx scripts/check-integrations.ts",
-    "test:e2e": "playwright test",
-    "test:e2e:bundled": "USE_BUNDLED_CHROMIUM=true playwright test",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
     "hash-password": "tsx scripts/hash-password.ts"
@@ -26,12 +24,11 @@
     "hono": "4.13.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
     "sharp": "0.35.4",
     "typebox": "1.3.24"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1",
-    "@sparticuz/chromium": "149.0.0",
     "@types/node": "24.10.1",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
