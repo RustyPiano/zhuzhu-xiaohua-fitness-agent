@@ -161,6 +161,7 @@ export type Bootstrap = {
   timezone: string;
   today: string;
   app_version: string;
+  agent: { configured: boolean; reason: string | null };
   image: { configured: boolean; max_files: number; max_bytes: number; max_pixels: number; reason: string | null };
   web: { provider: 'exa'; configured: boolean; reason: string | null; budget: WebBudgetStatus };
   ui_editing: { configured: boolean; reason: string | null };

@@ -24,6 +24,7 @@ export const config = {
   modelProvider: process.env.MODEL_PROVIDER ?? null,
   modelId: process.env.MODEL_ID ?? null,
   modelKey: process.env.MODEL_API_KEY ?? null,
+  agentSandboxImage: process.env.AGENT_SANDBOX_IMAGE ?? process.env.UI_SANDBOX_IMAGE ?? null,
   uiSandboxImage: process.env.UI_SANDBOX_IMAGE ?? null,
   devAuth: process.env.NODE_ENV !== 'production' && process.env.DEV_AUTH === 'true',
   devFixtures: process.env.NODE_ENV !== 'production' && process.env.DEV_FIXTURES === 'true',

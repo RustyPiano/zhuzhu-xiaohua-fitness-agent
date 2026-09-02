@@ -86,9 +86,10 @@ function AgentRuntime({ bootstrap, initialText }: { bootstrap: Bootstrap; initia
       <section className="conversation"><div className="conversation-scroll" ref={viewport}>{messages.length ? messages.map((message) => <MessageRow key={message.id} message={message} actor={bootstrap.actor}/>) : <div className="conversation-empty"><h1>从一件具体的事开始</h1><p>可以记录饮食或训练、调整未来计划、上传营养标签，或查阅公开资料。计划不会自动变成实际记录。</p></div>}{running ? <div className="thinking-row"><span/><span/><span/>正在处理并等待真实工具结果</div> : null}</div>
         <ComposerPrimitive.Root className="composer-shell">
           <ComposerPrimitive.Attachments components={{ Attachment: AttachmentChip }}/>
-          <ComposerPrimitive.Input className="composer-input" placeholder={`给${AGENT_NAME}发消息…`} rows={2}/>
-          <div className="composer-actions"><ComposerPrimitive.AddAttachment className="icon-button" aria-label="添加图片"><PaperclipIcon/></ComposerPrimitive.AddAttachment><span>JPEG · PNG · 静态 WebP，最多 4 张</span><div className="composer-buttons"><ComposerPrimitive.Cancel className="secondary-button">停止</ComposerPrimitive.Cancel><ComposerPrimitive.Send className="send-button"><SendIcon/>发送</ComposerPrimitive.Send></div></div>
+          <ComposerPrimitive.Input className="composer-input" placeholder={bootstrap.agent.configured ? `给${AGENT_NAME}发消息…` : '当前 Agent 不可用'} rows={2} disabled={!bootstrap.agent.configured}/>
+          <div className="composer-actions"><ComposerPrimitive.AddAttachment className="icon-button" aria-label="添加图片" disabled={!bootstrap.agent.configured}><PaperclipIcon/></ComposerPrimitive.AddAttachment><span>JPEG · PNG · 静态 WebP，最多 4 张</span><div className="composer-buttons"><ComposerPrimitive.Cancel className="secondary-button">停止</ComposerPrimitive.Cancel><ComposerPrimitive.Send className="send-button" disabled={!bootstrap.agent.configured}><SendIcon/>发送</ComposerPrimitive.Send></div></div>
         </ComposerPrimitive.Root>
+        {!bootstrap.agent.configured ? <p className="composer-error" role="status">{bootstrap.agent.reason}</p> : null}
         {error ? <p className="composer-error" role="alert">{error}</p> : null}
       </section>
     </main>

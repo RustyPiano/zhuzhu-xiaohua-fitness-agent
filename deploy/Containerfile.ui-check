@@ -1,4 +1,5 @@
 FROM node:24.19.0-alpine
+RUN apk add --no-cache git ripgrep
 RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
 WORKDIR /opt/project
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

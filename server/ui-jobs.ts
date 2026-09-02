@@ -18,11 +18,21 @@ const deploymentPath = () => path.join(config.runtimeDir, 'deployment.json');
 
 function command(bin: string, args: string[], cwd: string, timeout = 15 * 60_000): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' } });
+    const env = bin === 'git' ? { PATH: process.env.PATH, HOME: process.env.HOME, LANG: 'C', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } : { ...process.env, GIT_CONFIG_NOSYSTEM: '1' };
+    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], env });
     let out = ''; let err = ''; const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('命令超时')); }, timeout);
     child.stdout.on('data', (data) => { if (out.length < 100_000) out += String(data); });
     child.stderr.on('data', (data) => { if (err.length < 100_000) err += String(data); });
     child.on('close', (code) => { clearTimeout(timer); code === 0 ? resolve(out.trim()) : reject(new Error((err || out).trim().slice(-20_000))); });
+  });
+}
+function commandInput(bin: string, args: string[], cwd: string, input: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, { cwd, stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: 'C', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } });
+    let out = ''; let err = '';
+    child.stdout.on('data', (data) => { out += String(data); }); child.stderr.on('data', (data) => { err += String(data); });
+    child.on('error', reject); child.on('close', (code) => code === 0 ? resolve(out.trim()) : reject(new Error((err || out).trim() || `${bin} 退出 ${code}`)));
+    child.stdin.end(input);
   });
 }
 async function atomic(target: string, value: unknown): Promise<void> {
@@ -77,6 +87,34 @@ export async function writeUiFile(actor: PersonId, id: string, relative: string,
   const target = path.join(job.worktree, relative); await mkdir(path.dirname(target), { recursive: true });
   try { if ((await lstat(target)).isSymbolicLink()) throw new Error('不允许修改符号链接'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   await writeFile(target, content, 'utf8'); job.status = 'editing'; job.source_hash = null; job.artifact_hash = null; job.checks = []; await saveJob(job); return job;
+}
+
+export async function importUiWorkspace(actor: PersonId, requestId: string, summary: string, source: string, base: string): Promise<{ job: UiJob | null; ignored: string[] }> {
+  const gitDir = path.join(source, '.git'); const gitConfig = path.join(gitDir, 'config');
+  if (!(await lstat(gitDir)).isDirectory() || (await lstat(gitConfig)).isSymbolicLink()) throw new Error('候选仓库 Git 配置无效');
+  await writeFile(gitConfig, '[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tlogallrefupdates = true\n\thooksPath = /dev/null\n\tfsmonitor = false\n[user]\n\tname = Fitness Agent\n\temail = fitness-agent@localhost\n', 'utf8');
+  const [tracked, untracked] = await Promise.all([
+    command('git', ['diff', '--name-only', base], source),
+    command('git', ['ls-files', '--others', '--exclude-standard'], source),
+  ]);
+  const changed = [...new Set(`${tracked}\n${untracked}`.split('\n').map((name) => name.trim()).filter(Boolean))];
+  const web = changed.filter(allowedUiPath); const ignored = changed.filter((name) => !allowedUiPath(name));
+  if (!web.length) return { job: null, ignored };
+  const job = await beginUiJob(actor, requestId, summary);
+  await command('git', ['add', '-A', '--', 'web'], source);
+  const patch = await new Promise<Buffer>((resolve, reject) => {
+    const child = spawn('git', ['-c', 'core.hooksPath=/dev/null', 'diff', '--binary', base, '--', 'web/src', 'web/public'], { cwd: source, stdio: ['ignore', 'pipe', 'pipe'], env: { PATH: process.env.PATH, HOME: process.env.HOME, LANG: 'C', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } });
+    const out: Buffer[] = []; const err: Buffer[] = [];
+    child.stdout.on('data', (data) => out.push(Buffer.from(data))); child.stderr.on('data', (data) => err.push(Buffer.from(data)));
+    child.on('error', reject); child.on('close', (code) => code === 0 ? resolve(Buffer.concat(out)) : reject(new Error(Buffer.concat(err).toString('utf8'))));
+  });
+  try {
+    await commandInput('git', ['apply', '--whitespace=nowarn', '-'], job.worktree, patch);
+    return { job: await checkUiJob(actor, job.id), ignored };
+  } catch (error) {
+    job.status = 'failed'; job.error = error instanceof Error ? error.message : '候选 diff 应用失败'; await saveJob(job);
+    return { job, ignored };
+  }
 }
 
 export async function checkUiJob(actor: PersonId, id: string): Promise<UiJob> {

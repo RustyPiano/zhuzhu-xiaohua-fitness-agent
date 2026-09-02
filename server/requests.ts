@@ -14,6 +14,7 @@ export type RequestRecord = {
   id: string; actor: PersonId; digest: string; text: string; attachment_ids: string[]; attachment_hashes: string[];
   status: RequestStatus; created_at: string; updated_at: string; error: string | null;
   messages: ThreadMessage[]; web_calls: WebCall[]; tool_cache: Record<string, unknown>; committed_revision: string | null;
+  workspace_base_revision: string | null; app_candidate_id: string | null;
 };
 
 const emitters = new Map<string, EventEmitter>();
@@ -57,6 +58,7 @@ export async function createRequest(input: { id: string; actor: PersonId; text: 
     id: input.id, actor: input.actor, digest: expected, text: input.text,
     attachment_ids: input.attachment_ids, attachment_hashes: input.attachment_hashes,
     status: 'queued', created_at: now, updated_at: now, error: null, web_calls: [], tool_cache: {}, committed_revision: null,
+    workspace_base_revision: null, app_candidate_id: null,
     messages: [{ id: randomUUID(), role: 'user', text: input.text, attachment_ids: input.attachment_ids, receipts: [], created_at: now, status: 'complete' }],
   };
   await saveRequest(record);
