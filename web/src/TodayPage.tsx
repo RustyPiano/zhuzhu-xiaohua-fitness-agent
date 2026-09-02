@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import type { DayLog, DayPlan, DaySnapshot, ExercisePlan, MealItem, NutritionValue, PersonId, SetLog, ViewSubject } from '../../shared/contracts';
+import type { DayLog, DayPlan, DaySnapshot, ExercisePlan, MealItem, MeasurementLog, NutritionValue, PersonId, SetLog, ViewSubject } from '../../shared/contracts';
 import { PERSON_LABEL } from '../../shared/contracts';
 import { summarizeNutrition } from '../../shared/calculations';
 import { getDay } from './api';
-import { CalendarIcon, ChevronIcon, DumbbellIcon, EditIcon, MealIcon } from './icons';
+import { CalendarIcon, ChevronIcon, DumbbellIcon, EditIcon, MealIcon, ScaleIcon } from './icons';
 
 const people: PersonId[] = ['zhuzhu', 'xiaohua'];
 const mealLabel = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
 const mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 const statusScore = { unlogged: 0, partial: 0.5, complete: 1 } as const;
+const measurementLabel: Record<MeasurementLog['metric'], string> = { weight: '体重', waist: '腰围', body_fat: '体脂率', other: '其他' };
+const measurementNumber = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 });
 
 function setText(set: SetLog): string {
   const load = set.load === null ? '负重待补充' : `${set.load} ${set.load_unit ?? ''}`.trim();
@@ -125,6 +127,22 @@ function Meals({ plan, logs, visible }: { plan: DayPlan | null; logs: Record<Per
   </section>;
 }
 
+function Measurements({ logs, visible }: { logs: Record<PersonId, DayLog>; visible: PersonId[] }) {
+  const entries = visible.flatMap((person) => logs[person].measurements.map((measurement) => ({ person, measurement })));
+  if (!entries.length) return <EmptyBlock icon={<ScaleIcon />} title="这一天还没记录身体指标" text="体重、腰围和体脂都可以交给饲养员记录。" />;
+  return <section className="activity-section">
+    <SectionHeading icon={<ScaleIcon />} title="身体指标" />
+    <div className="measurement-board">
+      {entries.map(({ person, measurement }) => <article className={`measurement-card ${person}`} key={`${person}-${measurement.id}`}>
+        <div className="measurement-head"><strong>{PERSON_LABEL[person]}</strong><span>{measurementLabel[measurement.metric]}</span></div>
+        <div className="measurement-value">{measurementNumber.format(measurement.value)} <small>{measurement.unit}</small></div>
+        {measurement.measured_at ? <time>{new Date(measurement.measured_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</time> : null}
+        {measurement.notes.length ? <p>{measurement.notes.join(' · ')}</p> : null}
+      </article>)}
+    </div>
+  </section>;
+}
+
 function EmptyBlock({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return <section className="empty-block"><span className="empty-icon">{icon}</span><h2>{title}</h2><p>{text}</p></section>;
 }
@@ -155,7 +173,7 @@ export function TodayPage({ initialDate, onAskAgent }: { initialDate: string; on
     {error
       ? <p className="inline-error" role="alert">{error}</p>
       : snapshot
-        ? <div className="day-content"><Training snapshot={snapshot} visible={visible} /><Meals plan={snapshot.plan} logs={snapshot.logs} visible={visible} /></div>
+        ? <div className="day-content"><Measurements logs={snapshot.logs} visible={visible} /><Training snapshot={snapshot} visible={visible} /><Meals plan={snapshot.plan} logs={snapshot.logs} visible={visible} /></div>
         : <div className="loading-line">正在打开这一天…</div>}
     <footer className="today-footer"><button type="button" className="primary-action" onClick={() => onAskAgent(`请帮我记录 ${date} 的情况。`)}><EditIcon />交给饲养员记一笔</button></footer>
   </main>;

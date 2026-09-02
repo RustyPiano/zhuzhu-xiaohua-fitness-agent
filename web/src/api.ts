@@ -12,6 +12,7 @@ const previewLogs = { zhuzhu: emptyLog(previewBootstrap.today, 'zhuzhu'), xiaohu
 const previewSource = { recorded_by: 'zhuzhu' as const, request_id: 'preview-request', attachment_ids: [], recorded_at: '2026-09-02T09:00:00+08:00' };
 previewLogs.zhuzhu.training_status = 'partial'; previewLogs.zhuzhu.sets.push({ id: 'preview-set-1', exercise_id: 'preview-squat', equipment: null, load: 30, load_unit: 'kg', reps: 12, side: 'both', kind: 'work', source: previewSource });
 previewLogs.zhuzhu.nutrition_status = 'partial'; previewLogs.zhuzhu.meals.push({ id: 'preview-breakfast', meal: 'breakfast', items: [meal('preview-actual-oats', '燕麦粥', 60, 'g')], occurred_at: '2026-09-02T08:00:00+08:00', source: previewSource });
+previewLogs.zhuzhu.measurements.push({ id: 'preview-weight', metric: 'weight', value: 68.4, unit: 'kg', measured_at: '2026-09-02T07:30:00+08:00', notes: ['晨起空腹'], source: previewSource });
 const previewSnapshot: DaySnapshot = { revision: 'preview', date: previewBootstrap.today, plan: previewPlan, logs: previewLogs };
 const previewMessages: ThreadMessage[] = [{ id: 'preview-message', role: 'assistant', text: '想改哪里？告诉我就好。', attachment_ids: [], receipts: [], created_at: '2026-09-02T09:00:00+08:00', status: 'complete' }];
 

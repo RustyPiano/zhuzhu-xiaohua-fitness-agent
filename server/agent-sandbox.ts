@@ -10,7 +10,7 @@ type ExecResult = { stdout: Buffer; stderr: Buffer; exitCode: number | null };
 export const bashTimeoutMs = (seconds?: number): number => Math.min(seconds === undefined ? 120_000 : Math.max(0, seconds) * 1_000, 15 * 60_000);
 
 export function sandboxContainerArgs(workspace: AgentWorkspace, image: string, command: string[]): string[] {
-  return ['run', '--rm', '--network=none', '--read-only', '--userns=keep-id', '--cap-drop=ALL', '--security-opt=no-new-privileges',
+  return ['run', '--rm', '--network=none', '--read-only', '--userns=keep-id:uid=1000,gid=1000', '--cap-drop=ALL', '--security-opt=no-new-privileges',
     '--pids-limit=256', '--memory=1g', '--cpus=2', '--ulimit', 'fsize=2097152:2097152', '--tmpfs', '/tmp:rw,noexec,nosuid,size=128m', '-e', 'HOME=/tmp/home',
     '-e', 'GIT_OPTIONAL_LOCKS=0', '-e', 'GIT_NO_REPLACE_OBJECTS=1',
     '-v', `${path.join(workspace.root, 'AGENTS.md')}:/workspace/AGENTS.md:ro,Z`, '-v', `${workspace.app}:/workspace/app:rw,Z`,

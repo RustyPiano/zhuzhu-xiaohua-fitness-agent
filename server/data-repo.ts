@@ -51,7 +51,8 @@ function fixturePlan(date: string): DayPlan {
 function fixtureLog(date: string): DayLog {
   const log = emptyLog(date, 'zhuzhu'); const source = { recorded_by: 'zhuzhu' as const, request_id: 'dev-fixture', attachment_ids: [], recorded_at: `${date}T08:00:00+08:00` };
   log.training_status = 'partial'; log.sets.push({ id: 'fixture-set', exercise_id: 'goblet-squat', equipment: '哑铃', load: 30, load_unit: 'kg', reps: 12, side: 'both', kind: 'work', source });
-  log.nutrition_status = 'partial'; log.meals.push({ id: 'fixture-breakfast', meal: 'breakfast', occurred_at: `${date}T08:00:00+08:00`, source, items: [{ id: 'fixture-oats', name: '实际燕麦', amount: 60, unit: 'g', nutrition: { kcal: 228, protein_g: 8, carbs_g: 40, fat_g: 4 }, value_kind: 'weighed', assumptions: [] }] }); return log;
+  log.nutrition_status = 'partial'; log.meals.push({ id: 'fixture-breakfast', meal: 'breakfast', occurred_at: `${date}T08:00:00+08:00`, source, items: [{ id: 'fixture-oats', name: '实际燕麦', amount: 60, unit: 'g', nutrition: { kcal: 228, protein_g: 8, carbs_g: 40, fat_g: 4 }, value_kind: 'weighed', assumptions: [] }] });
+  log.measurements.push({ id: 'fixture-weight', metric: 'weight', value: 68.4, unit: 'kg', measured_at: `${date}T07:30:00+08:00`, notes: ['晨起空腹'], source }); return log;
 }
 
 export async function ensureDataRepo(today: string): Promise<void> {

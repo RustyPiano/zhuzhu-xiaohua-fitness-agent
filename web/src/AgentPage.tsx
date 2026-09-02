@@ -55,7 +55,7 @@ function MessageRow({ message, actor }: { message: ThreadMessage; actor: Bootstr
     <div className={`avatar ${isUser ? actor : 'agent'}`}>{isUser ? PERSON_LABEL[actor].slice(0, 1) : '饲'}</div>
     <div className="message-body"><div className="message-meta"><strong>{isUser ? PERSON_LABEL[actor] : AGENT_NAME}</strong><time>{new Date(message.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</time></div>
       {message.attachment_ids.length ? <div className="sent-attachments">{message.attachment_ids.map((id) => <img key={id} src={`/api/uploads/${id}`} alt="用户上传的图片" />)}</div> : null}
-      {message.text ? isUser ? <p className="message-text">{message.text}</p> : <MarkdownText text={message.text}/> : null}
+      {message.text ? <MarkdownText text={message.text}/> : null}
       {message.receipts.map((receipt, index) => <Receipt key={`${receipt.type}-${index}`} receipt={receipt}/>)}
     </div>
   </article>;
