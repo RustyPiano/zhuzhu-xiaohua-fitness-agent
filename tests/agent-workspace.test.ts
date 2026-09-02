@@ -56,4 +56,14 @@ describe('isolated Agent workspace finalizer', () => {
     await expect(workspaceModule.finalizeDataWorkspace(workspace, 'zhuzhu', 'request-12345678', [])).rejects.toThrow('人物或日期与路径不一致');
     await expect(readFile(path.join(process.env.DATA_REPO, 'logs', '2026-09-02', 'zhuzhu.json'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
+
+  it('identifies invalid candidate JSON without exposing a parser error', async () => {
+    temporary = await mkdtemp(path.join(os.tmpdir(), 'fitness-agent-workspace-'));
+    const app = path.join(temporary, 'app'); await mkdir(app); await initApp(app);
+    process.env.APP_REPO = app; process.env.DATA_REPO = path.join(temporary, 'data'); process.env.RUNTIME_DIR = path.join(temporary, 'runtime'); process.env.UPLOADS_DIR = path.join(temporary, 'uploads');
+    const dataRepo = await import('../server/data-repo.js'); await dataRepo.ensureDataRepo('2026-09-02');
+    const workspaceModule = await import('../server/agent-workspace.js'); const workspace = await workspaceModule.prepareAgentWorkspace('zhuzhu', []);
+    const target = path.join(workspace.data, 'memory', 'zhuzhu.json'); await writeFile(target, '');
+    await expect(workspaceModule.finalizeDataWorkspace(workspace, 'zhuzhu', 'request-12345678', [])).rejects.toThrow('memory/zhuzhu.json 不是有效 JSON，未保存任何数据');
+  });
 });

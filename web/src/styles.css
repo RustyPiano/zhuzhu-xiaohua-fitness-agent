@@ -276,10 +276,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .message-meta strong { font-size: 13px; font-weight: 750; }
 .message-meta time, .message-meta span { font: 500 11px/1 var(--mono); color: var(--muted); }
 .message-text { width: fit-content; max-width: min(680px, 90%); white-space: pre-wrap; margin: 0; padding: 13px 16px; line-height: 1.7; font-size: 14.5px; overflow-wrap: anywhere; border-radius: 5px 17px 17px 17px; background: var(--card); box-shadow: var(--shadow-sm); }
+.markdown-text { white-space: normal; line-height: 1.55; }
 .markdown-text > :first-child { margin-top: 0; }
 .markdown-text > :last-child { margin-bottom: 0; }
-.markdown-text p, .markdown-text ul, .markdown-text ol, .markdown-text blockquote, .markdown-text pre { margin: .65em 0; }
-.markdown-text ul, .markdown-text ol { padding-left: 1.4em; }
+.markdown-text p, .markdown-text ul, .markdown-text ol, .markdown-text blockquote, .markdown-text pre { margin: .4em 0; }
+.markdown-text ul, .markdown-text ol { padding-left: 1.25em; }
+.markdown-text li > p { margin: 0; }
+.markdown-text li + li { margin-top: .18em; }
 .markdown-text h1, .markdown-text h2, .markdown-text h3 { margin: .9em 0 .4em; font-size: 1em; }
 .markdown-text blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--ink-soft); }
 .markdown-text code { padding: .12em .35em; border-radius: 5px; background: var(--card-sunk); font: .9em/1.6 var(--mono); }

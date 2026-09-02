@@ -10,7 +10,7 @@ type ExecResult = { stdout: Buffer; stderr: Buffer; exitCode: number | null };
 export const bashTimeoutMs = (seconds?: number): number => Math.min(seconds === undefined ? 120_000 : Math.max(0, seconds) * 1_000, 15 * 60_000);
 
 export function sandboxContainerArgs(workspace: AgentWorkspace, image: string, command: string[]): string[] {
-  return ['run', '--rm', '--network=none', '--read-only', '--userns=keep-id:uid=1000,gid=1000', '--cap-drop=ALL', '--security-opt=no-new-privileges',
+  return ['run', '--rm', '--interactive', '--network=none', '--read-only', '--userns=keep-id:uid=1000,gid=1000', '--cap-drop=ALL', '--security-opt=no-new-privileges',
     '--pids-limit=256', '--memory=1g', '--cpus=2', '--ulimit', 'fsize=2097152:2097152', '--tmpfs', '/tmp:rw,noexec,nosuid,size=128m', '-e', 'HOME=/tmp/home',
     '-e', 'GIT_OPTIONAL_LOCKS=0', '-e', 'GIT_NO_REPLACE_OBJECTS=1',
     '-v', `${path.join(workspace.root, 'AGENTS.md')}:/workspace/AGENTS.md:ro,Z`, '-v', `${workspace.app}:/workspace/app:rw,Z`,
@@ -54,6 +54,10 @@ async function checked(workspace: AgentWorkspace, command: string[], input?: Buf
 }
 
 const text = (value: Buffer) => value.toString('utf8').slice(0, 64 * 1024).trimEnd() || '(无输出)';
+async function writeSandboxFile(workspace: AgentWorkspace, absolute: string, content: string): Promise<void> {
+  const data = Buffer.from(content);
+  await checked(workspace, ['sh', '-c', 'mkdir -p -- "$(dirname "$1")" && cat > "$1" && test "$(wc -c < "$1")" -eq "$2"', 'sh', containerPath(workspace, absolute), String(data.byteLength)], data);
+}
 function requestedPath(value: unknown): string {
   const resolved = path.posix.resolve('/workspace', typeof value === 'string' ? value : '.');
   if (resolved !== '/workspace' && !resolved.startsWith('/workspace/')) throw new Error('路径越出 Agent 工作区');
@@ -68,11 +72,11 @@ export function createSandboxTools(pi: PiModule, workspace: AgentWorkspace): any
   } });
   const write = pi.createWriteToolDefinition(workspace.root, { operations: {
     mkdir: async (absolute) => { await checked(workspace, ['sh', '-c', 'mkdir -p -- "$1"', 'sh', containerPath(workspace, absolute)]); },
-    writeFile: async (absolute, content) => { await checked(workspace, ['sh', '-c', 'mkdir -p -- "$(dirname "$1")" && cat > "$1"', 'sh', containerPath(workspace, absolute)], Buffer.from(content)); },
+    writeFile: (absolute, content) => writeSandboxFile(workspace, absolute, content),
   } });
   const edit = pi.createEditToolDefinition(workspace.root, { operations: {
     readFile: (absolute) => checked(workspace, ['sh', '-c', 'cat -- "$1"', 'sh', containerPath(workspace, absolute)]),
-    writeFile: async (absolute, content) => { await checked(workspace, ['sh', '-c', 'cat > "$1"', 'sh', containerPath(workspace, absolute)], Buffer.from(content)); },
+    writeFile: (absolute, content) => writeSandboxFile(workspace, absolute, content),
     access: async (absolute) => { await checked(workspace, ['sh', '-c', 'test -r "$1" && test -w "$1"', 'sh', containerPath(workspace, absolute)]); },
   } });
   const bash = pi.createBashToolDefinition(workspace.root, { exposeSessionEnvironment: false, operations: {

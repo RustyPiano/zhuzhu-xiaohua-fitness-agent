@@ -173,7 +173,8 @@ export async function finalizeDataWorkspace(workspace: AgentWorkspace, actor: Pe
       if (raw.byteLength > 512_000) throw new Error(`${relative} 超过 512 KiB`);
       await mkdir(path.dirname(target), { recursive: true });
       if (relative.endsWith('.md')) { await writeFile(target, raw); continue; }
-      const value = JSON.parse(raw.toString('utf8')) as any; let previous: any = null;
+      let value: any; try { value = JSON.parse(raw.toString('utf8')); } catch { throw new Error(`${relative} 不是有效 JSON，未保存任何数据`); }
+      let previous: any = null;
       try { previous = JSON.parse(await readFile(target, 'utf8')); } catch { /* new file */ }
       if (relative.startsWith('logs/')) normalizeLog(value as DayLog, previous as DayLog | null, actor, requestId, allowedAttachments, now);
       if (relative.startsWith('memory/')) normalizeMemory(value as MemoryFile, previous as MemoryFile | null, actor, requestId, now);
