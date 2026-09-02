@@ -9,7 +9,7 @@ fitness.example.com {
 }
 
 preview.example.com {
-  root * /srv/fitness/preview-current
+  root * /srv/fitness/releases
   file_server
   header {
     Content-Security-Policy "default-src 'self'; connect-src 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'"

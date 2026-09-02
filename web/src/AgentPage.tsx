@@ -14,7 +14,17 @@ const AGENT_NAME = '饲养员';
 function Receipt({ receipt }: { receipt: ToolReceipt }) {
   if (receipt.type === 'data') return <div className="receipt data-receipt"><div className="receipt-title"><span><CheckIcon/>已保存</span><code>{receipt.revision.slice(0, 8)}</code></div><dl><div><dt>人物</dt><dd>{PERSON_LABEL[receipt.subject]}</dd></div><div><dt>日期</dt><dd>{receipt.date}</dd></div><div><dt>变更</dt><dd>{receipt.summary}</dd></div></dl></div>;
   if (receipt.type === 'source') return <div className="receipt source-receipt"><span>来源 · {receipt.status === 'read' ? '已阅读全文' : '搜索片段'}</span><a href={receipt.url} target="_blank" rel="noopener noreferrer">{receipt.title}</a>{receipt.snippet ? <p>{receipt.snippet}</p> : null}</div>;
-  return <div className="receipt ui-receipt"><span>界面修改 · {receipt.status}</span><strong>{receipt.summary}</strong>{receipt.preview_url ? <a href={receipt.preview_url} target="_blank" rel="noopener noreferrer">打开隔离预览</a> : null}</div>;
+  return <UiReceipt receipt={receipt}/>;
+}
+
+function UiReceipt({ receipt }: { receipt: Extract<ToolReceipt, { type: 'ui' }> }) {
+  const [publishing, setPublishing] = useState(false); const [failure, setFailure] = useState('');
+  async function publish() {
+    setPublishing(true); setFailure('');
+    try { await api(`/api/ui-jobs/${receipt.job_id}/publish`, { method: 'POST', body: '{}' }); window.location.reload(); }
+    catch (error) { setFailure(error instanceof Error ? error.message : '发布失败'); setPublishing(false); }
+  }
+  return <div className="receipt ui-receipt"><span>界面修改 · {receipt.status}</span><strong>{receipt.summary}</strong><div className="receipt-actions">{receipt.preview_url ? <a href={receipt.preview_url} target="_blank" rel="noopener noreferrer">打开隔离预览</a> : null}{receipt.status === 'passed' ? <button type="button" onClick={publish} disabled={publishing}>{publishing ? '发布中…' : '发布此版本'}</button> : null}</div>{failure ? <small role="alert">{failure}</small> : null}</div>;
 }
 
 function MessageRow({ message, actor }: { message: ThreadMessage; actor: Bootstrap['actor'] }) {
@@ -33,20 +43,30 @@ function AttachmentChip() { return <div className="attachment-chip"><AttachmentP
 
 function AgentRuntime({ bootstrap, initialText }: { bootstrap: Bootstrap; initialText: string }) {
   const [messages, setMessages] = useState<ThreadMessage[]>([]); const [running, setRunning] = useState(false); const [activeRequest, setActiveRequest] = useState<string | null>(null); const [error, setError] = useState('');
+  const [streamText, setStreamText] = useState(''); const [toolProgress, setToolProgress] = useState<string[]>([]); const [liveReceipt, setLiveReceipt] = useState<ToolReceipt | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const refresh = useCallback(async () => { const value = await getThread(); setMessages(value.messages); }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => { viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
 
   const watch = useCallback(async (id: string) => {
-    setRunning(true); setActiveRequest(id);
-    await new Promise<void>((resolve) => {
+    setRunning(true); setActiveRequest(id); setStreamText(''); setToolProgress([]); setLiveReceipt(null);
+    const outcome = await new Promise<'done' | 'disconnected'>((resolve) => {
       const stream = new EventSource(`/api/requests/${id}/events`);
-      const finish = () => { stream.close(); resolve(); };
-      stream.addEventListener('done', finish); stream.addEventListener('error', finish);
-      window.setTimeout(finish, 125_000);
+      const finish = (value: 'done' | 'disconnected') => { stream.close(); resolve(value); };
+      stream.addEventListener('text_delta', (event) => { const value = JSON.parse((event as MessageEvent).data) as { delta?: string }; if (value.delta) setStreamText((current) => current + value.delta); });
+      stream.addEventListener('tool_result', (event) => { const value = JSON.parse((event as MessageEvent).data) as { tool?: string; status?: string }; if (value.tool) setToolProgress((current) => [...current.slice(-3), `${value.tool} · ${value.status ?? 'done'}`]); });
+      stream.addEventListener('data_committed', (event) => setLiveReceipt(JSON.parse((event as MessageEvent).data) as ToolReceipt));
+      stream.addEventListener('done', () => finish('done')); stream.onerror = () => finish('disconnected');
     });
-    await refresh(); setRunning(false); setActiveRequest(null);
+    if (outcome === 'disconnected') {
+      for (;;) {
+        const request = await api<{ status: string }>(`/api/requests/${id}`);
+        if (['done', 'error', 'cancelled', 'interrupted'].includes(request.status)) break;
+        await new Promise((resolve) => window.setTimeout(resolve, 1_500));
+      }
+    }
+    await refresh(); setRunning(false); setActiveRequest(null); setStreamText(''); setToolProgress([]); setLiveReceipt(null);
   }, [refresh]);
 
   const attachmentAdapter = useMemo<AttachmentAdapter>(() => ({
@@ -83,7 +103,7 @@ function AgentRuntime({ bootstrap, initialText }: { bootstrap: Bootstrap; initia
   return <AssistantRuntimeProvider runtime={runtime}>
     <main className="agent-page">
       <aside className="thread-rail"><button className="new-thread" onClick={newThread}><PlusIcon/>新会话</button><div className="thread-item active"><span className={`avatar ${bootstrap.actor}`}>{PERSON_LABEL[bootstrap.actor].slice(0, 1)}</span><div><strong>{PERSON_LABEL[bootstrap.actor]}</strong><small>当前私人会话</small></div></div><div className="budget-card"><span>本应用估算用量</span><b>${used.toFixed(3)} / ${(bootstrap.web.budget.stop_microusd / 1_000_000).toFixed(0)}</b><div><i style={{ width: `${Math.min(100, used / (bootstrap.web.budget.stop_microusd / 1_000_000) * 100)}%` }}/></div><small>{bootstrap.web.configured ? (bootstrap.web.budget.stopped ? '已暂停新的联网请求' : '两人及代码任务共用') : bootstrap.web.reason}</small></div></aside>
-      <section className="conversation"><div className="conversation-scroll" ref={viewport}>{messages.length ? messages.map((message) => <MessageRow key={message.id} message={message} actor={bootstrap.actor}/>) : <div className="conversation-empty"><h1>从一件具体的事开始</h1><p>可以记录饮食或训练、调整未来计划、上传营养标签，或查阅公开资料。计划不会自动变成实际记录。</p></div>}{running ? <div className="thinking-row"><span/><span/><span/>正在处理并等待真实工具结果</div> : null}</div>
+      <section className="conversation"><div className="conversation-scroll" ref={viewport}>{messages.length ? messages.map((message) => <MessageRow key={message.id} message={message} actor={bootstrap.actor}/>) : <div className="conversation-empty"><h1>从一件具体的事开始</h1><p>可以记录饮食或训练、调整未来计划、上传营养标签，或查阅公开资料。计划不会自动变成实际记录。</p></div>}{running && (streamText || toolProgress.length || liveReceipt) ? <article className="message-row assistant-message live-message"><div className="avatar agent">饲</div><div className="message-body"><div className="message-meta"><strong>{AGENT_NAME}</strong><span>处理中</span></div>{streamText ? <p className="message-text">{streamText}</p> : null}{toolProgress.map((item, index) => <small className="tool-progress" key={`${item}-${index}`}>{item}</small>)}{liveReceipt ? <Receipt receipt={liveReceipt}/> : null}</div></article> : null}{running ? <div className="thinking-row"><span/><span/><span/>正在处理并等待真实工具结果</div> : null}</div>
         <ComposerPrimitive.Root className="composer-shell">
           <ComposerPrimitive.Attachments components={{ Attachment: AttachmentChip }}/>
           <ComposerPrimitive.Input className="composer-input" placeholder={bootstrap.agent.configured ? `给${AGENT_NAME}发消息…` : '当前 Agent 不可用'} rows={2} disabled={!bootstrap.agent.configured}/>

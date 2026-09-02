@@ -8,7 +8,7 @@ import { login, logout, requireAuth, requireExactOrigin } from './auth.js';
 import { businessDate, config } from './config.js';
 import { daySnapshot, ensureDataRepo } from './data-repo.js';
 import { webBudgetStatus } from './exa.js';
-import { resetAgentSession, runAgent } from './agent.js';
+import { runAgent } from './agent.js';
 import { cancelRequest, createRequest, enqueue, listActorMessages, loadRequest, markInterruptedRequests, markNewThread, subscribe } from './requests.js';
 import { assertAttachmentAccess, readAttachmentBytes, readAttachmentMeta, saveUpload, uploadLimits } from './uploads.js';
 import { currentWebRoot, deploymentInfo, publishUiJob, rollbackUi } from './ui-jobs.js';
@@ -49,7 +49,7 @@ app.get('/api/day', async (c) => {
 app.get('/api/thread', async (c) => c.json({ messages: await listActorMessages(c.get('actor')) }));
 app.post('/api/thread/new', async (c) => {
   const originError = requireExactOrigin(c); if (originError) return originError;
-  await resetAgentSession(c.get('actor')); await markNewThread(c.get('actor')); return c.json({ ok: true });
+  await markNewThread(c.get('actor')); return c.json({ ok: true });
 });
 
 app.post('/api/messages', async (c) => {
@@ -83,7 +83,7 @@ app.get('/api/requests/:id/events', async (c) => {
     let closed = false;
     const unsubscribe = subscribe(id, ({ event, data }) => { if (!closed) void stream.writeSSE({ event, data: JSON.stringify(data) }); });
     stream.onAbort(() => { closed = true; unsubscribe(); });
-    while (!closed) { await stream.sleep(15_000); await stream.writeSSE({ event: 'ping', data: '{}' }); const latest = await loadRequest(id); if (['done', 'error', 'cancelled', 'interrupted'].includes(latest.status)) break; }
+    while (!closed) { await stream.sleep(15_000); await stream.writeSSE({ event: 'ping', data: '{}' }); const latest = await loadRequest(id); if (['done', 'error', 'cancelled', 'interrupted'].includes(latest.status)) { await stream.writeSSE({ event: 'done', data: JSON.stringify({ status: latest.status }) }); break; } }
     closed = true; unsubscribe();
   });
 });
@@ -111,7 +111,7 @@ app.post('/api/ui-jobs/:id/publish', async (c) => {
 
 app.get('/ops', requireAuth, async (c) => {
   const deployment = await deploymentInfo();
-  return c.html(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>前端恢复</title><style>body{font:16px system-ui;max-width:720px;margin:48px auto;padding:20px;color:#191817}code{background:#f3f1ef;padding:3px 6px;border-radius:4px}button{padding:10px 16px}</style><h1>前端恢复</h1><p>当前产物：<code>${escapeHtml(deployment.current ?? '初始构建')}</code></p><p>源码版本：<code>${escapeHtml(deployment.source_revision ?? '未记录')}</code></p><form method="post" action="/ops/rollback"><button type="submit">恢复上一个可用版本</button></form>`);
+  return c.html(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>前端恢复</title><style>body{font:16px system-ui;max-width:720px;margin:48px auto;padding:20px;color:#191817}code{background:#f3f1ef;padding:3px 6px;border-radius:4px}button{padding:10px 16px}</style><h1>前端恢复</h1><p>当前产物：<code>${escapeHtml(deployment.current?.artifact_path ?? '初始构建')}</code></p><p>源码版本：<code>${escapeHtml(deployment.current?.source_revision ?? '未记录')}</code></p><form method="post" action="/ops/rollback"><button type="submit">恢复上一个可用版本</button></form>`);
 });
 app.post('/ops/rollback', requireAuth, async (c) => {
   const originError = requireExactOrigin(c); if (originError) return originError;

@@ -3,7 +3,8 @@ import { EventEmitter } from 'node:events';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { PersonId, ThreadMessage } from '../shared/contracts.js';
-import { config } from './config.js';
+import { businessDate, config } from './config.js';
+import { findRequestRevision } from './data-repo.js';
 
 export type RequestStatus = 'queued' | 'running' | 'done' | 'error' | 'cancelled' | 'interrupted';
 export type WebCall = {
@@ -16,6 +17,7 @@ export type RequestRecord = {
   messages: ThreadMessage[]; web_calls: WebCall[]; tool_cache: Record<string, unknown>; committed_revision: string | null;
   workspace_base_revision: string | null; app_candidate_id: string | null;
 };
+export type ThreadState = { actor: PersonId; started_at: string; session_generation: string | null };
 
 const emitters = new Map<string, EventEmitter>();
 let queueTail = Promise.resolve();
@@ -113,7 +115,14 @@ export async function listActorMessages(actor: PersonId): Promise<ThreadMessage[
 }
 
 export async function markNewThread(actor: PersonId): Promise<void> {
-  await atomicWrite(path.join(config.runtimeDir, 'threads', `${actor}.json`), { actor, started_at: new Date().toISOString() });
+  await atomicWrite(path.join(config.runtimeDir, 'threads', `${actor}.json`), { actor, started_at: new Date().toISOString(), session_generation: randomUUID() });
+}
+
+export async function loadThreadState(actor: PersonId): Promise<ThreadState> {
+  try {
+    const value = JSON.parse(await readFile(path.join(config.runtimeDir, 'threads', `${actor}.json`), 'utf8')) as ThreadState;
+    return { actor, started_at: value.started_at, session_generation: value.session_generation ?? null };
+  } catch { return { actor, started_at: '', session_generation: null }; }
 }
 
 export async function markInterruptedRequests(): Promise<void> {
@@ -122,6 +131,17 @@ export async function markInterruptedRequests(): Promise<void> {
     if (!name.endsWith('.json')) continue;
     try {
       const record = JSON.parse(await readFile(path.join(directory(), name), 'utf8')) as RequestRecord;
+      if (!record.committed_revision && (record.status === 'running' || record.status === 'interrupted')) {
+        const revision = await findRequestRevision(record.id);
+        if (revision) {
+          record.committed_revision = revision; record.status = 'done'; record.error = null;
+          if (!record.messages.some((message) => message.receipts.some((receipt) => receipt.type === 'data' && receipt.revision === revision))) record.messages.push({
+            id: randomUUID(), role: 'assistant', text: '服务重启后已从 Git 提交恢复保存回执。', attachment_ids: [], created_at: new Date().toISOString(), status: 'complete',
+            receipts: [{ type: 'data', status: 'saved', subject: record.actor, date: businessDate(), summary: '数据已保存；回复在提交后被服务重启中断', revision }],
+          });
+          await saveRequest(record); continue;
+        }
+      }
       if (record.status === 'running') { record.status = 'interrupted'; record.error = '服务重启中断了请求；不会自动重复副作用'; await saveRequest(record); }
     } catch { /* fail closed for that record */ }
   }

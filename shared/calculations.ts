@@ -1,19 +1,19 @@
 import type { DayLog, NutritionValue } from './contracts.js';
 
-export type NutritionSummary = NutritionValue & { unknown_items: number; logged_items: number };
+export type NutrientSummary = { known_total: number | null; known_items: number; unknown_items: number };
+export type NutritionSummary = { nutrients: Record<keyof NutritionValue, NutrientSummary>; logged_items: number };
 
 export function summarizeNutrition(log: DayLog): NutritionSummary {
-  const result: NutritionSummary = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, unknown_items: 0, logged_items: 0 };
+  const nutrient = (): NutrientSummary => ({ known_total: null, known_items: 0, unknown_items: 0 });
+  const result: NutritionSummary = { nutrients: { kcal: nutrient(), protein_g: nutrient(), carbs_g: nutrient(), fat_g: nutrient() }, logged_items: 0 };
   for (const meal of log.meals) for (const item of meal.items) {
     result.logged_items += 1;
-    const n = item.nutrition;
-    if ([n.kcal, n.protein_g, n.carbs_g, n.fat_g].every((v) => v === null)) result.unknown_items += 1;
     for (const key of ['kcal', 'protein_g', 'carbs_g', 'fat_g'] as const) {
-      const value = n[key];
-      if (value !== null) result[key] = (result[key] ?? 0) + value;
+      const value = item.nutrition[key]; const summary = result.nutrients[key];
+      if (value === null) summary.unknown_items += 1;
+      else { summary.known_total = (summary.known_total ?? 0) + value; summary.known_items += 1; }
     }
   }
-  if (!result.logged_items) return { kcal: null, protein_g: null, carbs_g: null, fat_g: null, unknown_items: 0, logged_items: 0 };
   return result;
 }
 

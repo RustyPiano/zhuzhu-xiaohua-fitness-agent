@@ -9,9 +9,10 @@ const people: PersonId[] = ['zhuzhu', 'xiaohua'];
 const mealLabel = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' };
 
 function NutritionSummary({ log }: { log: DayLog }) {
-  const summary = summarizeNutrition(log);
+  const summary = summarizeNutrition(log); const kcal = summary.nutrients.kcal; const protein = summary.nutrients.protein_g;
   if (!summary.logged_items) return <span className="unlogged">尚未记录</span>;
-  return <span className="known-total">已知合计 {summary.kcal === null ? '—' : `${Math.round(summary.kcal)} 千卡`}{summary.unknown_items ? ` · ${summary.unknown_items} 项未估算` : ''}</span>;
+  const show = (label: string, value: typeof kcal, unit: string) => value.known_total === null ? `${label}未知` : `${label}${value.unknown_items ? '至少' : ''}${Math.round(value.known_total)} ${unit}${value.unknown_items ? `，另 ${value.unknown_items} 项未估算` : ''}`;
+  return <span className="known-total">{show('热量', kcal, '千卡')} · {show('蛋白质', protein, 'g')}</span>;
 }
 
 function Training({ snapshot, visible }: { snapshot: DaySnapshot; visible: PersonId[] }) {

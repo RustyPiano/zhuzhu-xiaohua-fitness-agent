@@ -31,6 +31,7 @@ describe('isolated Agent workspace finalizer', () => {
     const log = emptyLog('2026-09-02', 'xiaohua');
     log.meals.push({ id: 'meal-1', meal: 'lunch', items: [], occurred_at: null, source: { recorded_by: 'xiaohua', request_id: 'spoofed', attachment_ids: ['not-allowed'], recorded_at: '2000-01-01T00:00:00.000Z' } });
     const target = path.join(workspace.data, 'logs', '2026-09-02', 'xiaohua.json'); await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, `${JSON.stringify(log, null, 2)}\n`);
+    await rm(path.join(workspace.data, '.git'), { recursive: true, force: true });
     const result = await workspaceModule.finalizeDataWorkspace(workspace, 'zhuzhu', 'request-12345678', []);
     expect(result?.paths).toEqual(['logs/2026-09-02/xiaohua.json']);
     const saved = JSON.parse(await readFile(path.join(process.env.DATA_REPO, 'logs', '2026-09-02', 'xiaohua.json'), 'utf8'));
@@ -49,4 +50,3 @@ describe('isolated Agent workspace finalizer', () => {
     await expect(readFile(path.join(process.env.DATA_REPO, 'logs', '2026-09-02', 'zhuzhu.json'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
-

@@ -8,15 +8,11 @@ import { createSandboxTools } from './agent-sandbox.js';
 import { finalizeDataWorkspace, prepareAgentWorkspace } from './agent-workspace.js';
 import { businessDate, config } from './config.js';
 import { webRead, webSearch } from './exa.js';
-import { emit, loadRequest, saveRequest, type RequestRecord } from './requests.js';
+import { emit, loadRequest, loadThreadState, saveRequest, type RequestRecord } from './requests.js';
 import { readAttachmentBytes } from './uploads.js';
-import { importUiWorkspace } from './ui-jobs.js';
+import { currentUiSourceRevision, importUiWorkspace } from './ui-jobs.js';
 
 type PiSession = { prompt: (text: string, options?: Record<string, unknown>) => Promise<void>; subscribe: (fn: (event: any) => void) => () => void; abort: () => Promise<void>; dispose: () => void };
-const forceNew = new Set<PersonId>();
-
-export async function resetAgentSession(actor: PersonId): Promise<void> { forceNew.add(actor); }
-
 export async function runAgent(initial: RequestRecord, signal: AbortSignal): Promise<void> {
   if (process.env.NODE_ENV !== 'production' && process.env.DEV_MOCK_AGENT === 'true') {
     const record = await loadRequest(initial.id);
@@ -26,10 +22,10 @@ export async function runAgent(initial: RequestRecord, signal: AbortSignal): Pro
   if (!config.modelProvider || !config.modelId || !config.modelKey) throw new Error('未配置支持图片和工具调用的模型');
   if (!config.agentSandboxImage) throw new Error('未配置 AGENT_SANDBOX_IMAGE，不会在宿主进程权限下开放 Pi 工具');
 
-  const workspace = await prepareAgentWorkspace(initial.actor, initial.attachment_ids);
+  const workspace = await prepareAgentWorkspace(initial.actor, initial.attachment_ids, await currentUiSourceRevision());
   const pending = await loadRequest(initial.id); pending.workspace_base_revision = workspace.dataBaseRevision; await saveRequest(pending);
-  const pi = await import('@earendil-works/pi-coding-agent');
-  const agentDir = path.join(config.runtimeDir, 'pi-agent'); const sessionDir = path.join(config.runtimeDir, 'sessions', initial.actor);
+  const pi = await import('@earendil-works/pi-coding-agent'); const thread = await loadThreadState(initial.actor);
+  const agentDir = path.join(config.runtimeDir, 'pi-agent'); const sessionDir = thread.session_generation ? path.join(config.runtimeDir, 'sessions', initial.actor, thread.session_generation) : path.join(config.runtimeDir, 'sessions', initial.actor);
   await mkdir(agentDir, { recursive: true }); await mkdir(sessionDir, { recursive: true });
   const receipts: ToolReceipt[] = [];
   const searchTool = pi.defineTool({
@@ -47,7 +43,7 @@ export async function runAgent(initial: RequestRecord, signal: AbortSignal): Pro
   await modelRuntime.setRuntimeApiKey(config.modelProvider, config.modelKey);
   const model = modelRuntime.getModel(config.modelProvider, config.modelId);
   if (!model) throw new Error(`Pi 未找到模型 ${config.modelProvider}/${config.modelId}`);
-  const sessionManager = forceNew.delete(initial.actor) ? pi.SessionManager.create(workspace.root, sessionDir) : pi.SessionManager.continueRecent(workspace.root, sessionDir);
+  const sessionManager = pi.SessionManager.continueRecent(workspace.root, sessionDir);
   const { session } = await pi.createAgentSession({ cwd: workspace.root, agentDir, modelRuntime, model, thinkingLevel: 'low', resourceLoader: loader, settingsManager: settings, sessionManager, tools: ['read', 'write', 'edit', 'bash', 'grep', 'find', 'ls', 'web_search', 'web_read'], customTools: [...createSandboxTools(pi, workspace), searchTool, webReadTool] });
   const runtime = session as unknown as PiSession;
   const images = [] as Array<{ type: 'image'; source: { type: 'base64'; mediaType: string; data: string } }>;
@@ -71,7 +67,7 @@ export async function runAgent(initial: RequestRecord, signal: AbortSignal): Pro
     let ui: Awaited<ReturnType<typeof importUiWorkspace>> = { job: null, ignored: [] };
     try { ui = await importUiWorkspace(initial.actor, initial.id, initial.text.slice(0, 120) || '更新前端', workspace.app, workspace.appBaseRevision); }
     catch (error) { receipts.push({ type: 'ui', status: 'failed', job_id: 'host-finalizer', summary: error instanceof Error ? error.message : '前端候选处理失败' }); }
-    if (ui.job) { const receipt: ToolReceipt = { type: 'ui', status: ui.job.status, job_id: ui.job.id, summary: ui.job.error ?? ui.job.summary, preview_url: ui.job.status === 'passed' ? `${config.previewOrigin}/?candidate=${ui.job.id}` : undefined }; receipts.push(receipt); emit(initial.id, 'tool_result', { tool: 'host_finalizer', status: ui.job.status }); }
+    if (ui.job) { const receipt: ToolReceipt = { type: 'ui', status: ui.job.status, job_id: ui.job.id, summary: ui.job.error ?? ui.job.summary, preview_url: ui.job.status === 'passed' ? `${config.previewOrigin.replace(/\/$/, '')}/candidates/${ui.job.id}/` : undefined }; receipts.push(receipt); emit(initial.id, 'tool_result', { tool: 'host_finalizer', status: ui.job.status }); }
     if (ui.ignored.length) receipts.push({ type: 'ui', status: 'not_publishable', job_id: 'isolated-workspace', summary: `运行时 Agent 不能发布这些路径：${ui.ignored.join('、')}` });
     const record = await loadRequest(initial.id); if (ui.job) record.app_candidate_id = ui.job.id;
     record.messages.push({ id: randomUUID(), role: 'assistant', text: response || '模型已结束本轮，但没有返回文字。', attachment_ids: [], receipts, created_at: new Date().toISOString(), status: 'complete' }); await saveRequest(record);

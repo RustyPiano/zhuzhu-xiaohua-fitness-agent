@@ -115,7 +115,7 @@ export async function applyData(actor: PersonId, requestId: string, baseRevision
       await safeWrite(change.path, change.content);
     }
     await git(['add', '--', ...changes.map((change) => change.path)]);
-    await git(['commit', '-m', `data: ${actor} request ${requestId}`]);
+    await git(['commit', '-m', `data: ${actor} request ${requestId}`, '-m', `Request-Id: ${requestId}`]);
     return await headRevision();
   } catch (error) {
     for (const change of changes) {
@@ -124,6 +124,14 @@ export async function applyData(actor: PersonId, requestId: string, baseRevision
     }
     throw error;
   }
+}
+
+export async function findRequestRevision(requestId: string): Promise<string | null> {
+  if (!/^[a-zA-Z0-9_-]{8,100}$/.test(requestId)) return null;
+  try {
+    const revision = await git(['log', '-n', '200', '--format=%H', '--fixed-strings', '--grep', `Request-Id: ${requestId}`]);
+    return revision.split('\n').find(Boolean) ?? null;
+  } catch { return null; }
 }
 
 export async function readMemory(subject: PersonId | 'shared'): Promise<MemoryFile> {

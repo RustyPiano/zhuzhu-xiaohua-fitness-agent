@@ -4,7 +4,8 @@ import { emptyLog } from '../shared/contracts.js';
 
 describe('statistics keep missing data distinct from zero', () => {
   it('does not turn an unlogged day into zero intake', () => {
-    expect(summarizeNutrition(emptyLog('2026-09-01', 'zhuzhu'))).toEqual({ kcal: null, protein_g: null, carbs_g: null, fat_g: null, unknown_items: 0, logged_items: 0 });
+    const summary = summarizeNutrition(emptyLog('2026-09-01', 'zhuzhu'));
+    expect(summary.logged_items).toBe(0); expect(summary.nutrients.kcal).toEqual({ known_total: null, known_items: 0, unknown_items: 0 });
   });
 
   it('counts known totals and reports unknown items', () => {
@@ -17,7 +18,8 @@ describe('statistics keep missing data distinct from zero', () => {
         { id: 'dish', name: '菜', amount: null, unit: null, nutrition: { kcal: null, protein_g: null, carbs_g: null, fat_g: null }, value_kind: 'unknown', assumptions: [] },
       ],
     });
-    expect(summarizeNutrition(log)).toMatchObject({ kcal: 180, protein_g: 4, unknown_items: 1, logged_items: 2 });
+    const summary = summarizeNutrition(log);
+    expect(summary.logged_items).toBe(2); expect(summary.nutrients.kcal).toEqual({ known_total: 180, known_items: 1, unknown_items: 1 }); expect(summary.nutrients.protein_g).toEqual({ known_total: 4, known_items: 1, unknown_items: 1 });
   });
 
   it('averages only valid samples and exposes sample count', () => {

@@ -9,6 +9,8 @@ User=fitness
 Group=fitness
 WorkingDirectory=/srv/fitness/app-repo
 Environment=NODE_ENV=production
+Environment=HOME=/var/lib/fitness-agent
+Environment=XDG_RUNTIME_DIR=/run/fitness-agent
 EnvironmentFile=/etc/fitness-agent.env
 ExecStart=/usr/bin/env corepack pnpm start
 Restart=on-failure
@@ -17,7 +19,11 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/fitness/data-repo /srv/fitness/runtime /srv/fitness/uploads /srv/fitness/releases /srv/fitness/ui-worktrees
+RuntimeDirectory=fitness-agent
+RuntimeDirectoryMode=0700
+StateDirectory=fitness-agent
+StateDirectoryMode=0700
+ReadWritePaths=/srv/fitness/app-repo /srv/fitness/data-repo /srv/fitness/runtime /srv/fitness/uploads /srv/fitness/releases /srv/fitness/ui-worktrees
 UMask=0077
 LimitNOFILE=4096
 
