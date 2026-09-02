@@ -87,6 +87,27 @@ export type SetLog = {
   source: SourceRef;
 };
 
+export type CardioLog = {
+  id: string;
+  activity: string;
+  duration_minutes: number | null;
+  distance_km: number | null;
+  intensity: string | null;
+  occurred_at: string | null;
+  notes: string[];
+  source: SourceRef;
+};
+
+export type MeasurementLog = {
+  id: string;
+  metric: 'weight' | 'waist' | 'body_fat' | 'other';
+  value: number;
+  unit: string;
+  measured_at: string | null;
+  notes: string[];
+  source: SourceRef;
+};
+
 export type DayLog = {
   schema_version: 1;
   date: string;
@@ -96,8 +117,8 @@ export type DayLog = {
   meals: MealLog[];
   training_status: 'unlogged' | 'partial' | 'complete';
   sets: SetLog[];
-  cardio: Array<Record<string, unknown>>;
-  measurements: Array<Record<string, unknown>>;
+  cardio: CardioLog[];
+  measurements: MeasurementLog[];
   notes: string[];
 };
 

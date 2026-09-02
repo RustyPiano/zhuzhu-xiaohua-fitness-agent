@@ -1,13 +1,11 @@
 import { constants } from 'node:fs';
-import { access, lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { DayLog, DayPlan, DaySnapshot, MemoryFile, PersonId, PersonProfile } from '../shared/contracts.js';
 import { emptyLog } from '../shared/contracts.js';
-import { assertAllowedDataPath, validateBusinessJson } from '../shared/validation.js';
+import { assertAllowedDataPath } from '../shared/validation.js';
 import { config } from './config.js';
-
-type Change = { path: string; content: unknown | string };
 
 function git(args: string[], cwd = config.dataRepo): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -46,8 +44,14 @@ function fixturePlan(date: string): DayPlan {
   ];
   return { schema_version: 1, date, status: 'active', title: '全身力量 · A', notes: ['这是仅在 DEV_FIXTURES=true 时生成的虚构演示数据。'], people: {
     zhuzhu: { nutrition: { targets: { kcal: 1900, protein_g: 110, carbs_g: null, fat_g: null }, meals: meals('z') }, training: { type: '全身力量', exercises: [exercise('goblet-squat', '高脚杯深蹲', 14), exercise('dumbbell-row', '单臂哑铃划船', 10), exercise('floor-press', '哑铃卧推', 8)], cardio: null } },
-    xiaohua: { nutrition: { targets: { kcal: 1700, protein_g: 95, carbs_g: null, fat_g: null }, meals: meals('x') }, training: { type: '全身力量', exercises: [exercise('goblet-squat', '高脚杯深蹲', 10), exercise('dumbbell-row', '单臂哑铃划船', 8), exercise('floor-press', '哑铃卧推', 6)], cardio: null } },
+    xiaohua: { nutrition: { targets: { kcal: 1700, protein_g: 95, carbs_g: null, fat_g: null }, meals: meals('x') }, training: { type: '全身力量', exercises: [exercise('goblet-squat', '高脚杯深蹲', 10), exercise('dumbbell-row', '单臂哑铃划船', 8), exercise('floor-press', '哑铃卧推', 6), exercise('xiaohua-deadlift', '小花专属硬拉', 20)], cardio: null } },
   } };
+}
+
+function fixtureLog(date: string): DayLog {
+  const log = emptyLog(date, 'zhuzhu'); const source = { recorded_by: 'zhuzhu' as const, request_id: 'dev-fixture', attachment_ids: [], recorded_at: `${date}T08:00:00+08:00` };
+  log.training_status = 'partial'; log.sets.push({ id: 'fixture-set', exercise_id: 'goblet-squat', equipment: '哑铃', load: 30, load_unit: 'kg', reps: 12, side: 'both', kind: 'work', source });
+  log.nutrition_status = 'partial'; log.meals.push({ id: 'fixture-breakfast', meal: 'breakfast', occurred_at: `${date}T08:00:00+08:00`, source, items: [{ id: 'fixture-oats', name: '实际燕麦', amount: 60, unit: 'g', nutrition: { kcal: 228, protein_g: 8, carbs_g: 40, fat_g: 4 }, value_kind: 'weighed', assumptions: [] }] }); return log;
 }
 
 export async function ensureDataRepo(today: string): Promise<void> {
@@ -64,7 +68,8 @@ export async function ensureDataRepo(today: string): Promise<void> {
   ];
   for (const [relative, value] of initial) if (!(await exists(path.join(config.dataRepo, relative)))) await safeWrite(relative, value);
   if (config.devFixtures && !(await exists(path.join(config.dataRepo, `plans/${today}.json`)))) await safeWrite(`plans/${today}.json`, fixturePlan(today));
-  await git(['add', '--', 'people', 'memory', 'ui.json', 'plans']).catch(async () => git(['add', '--', 'people', 'memory', 'ui.json']));
+  if (config.devFixtures && !(await exists(path.join(config.dataRepo, `logs/${today}/zhuzhu.json`)))) await safeWrite(`logs/${today}/zhuzhu.json`, fixtureLog(today));
+  await git(['add', '--', 'people', 'memory', 'ui.json', 'plans', 'logs']).catch(async () => git(['add', '--', 'people', 'memory', 'ui.json']));
   const staged = await git(['diff', '--cached', '--name-only']);
   if (staged) await git(['commit', '-m', 'bootstrap: initialize empty profiles and memory']);
 }
@@ -84,46 +89,6 @@ export async function daySnapshot(date: string): Promise<DaySnapshot> {
     readAt<DayLog>(revision, `logs/${date}/xiaohua.json`),
   ]);
   return { revision, date, plan, logs: { zhuzhu: z ?? emptyLog(date, 'zhuzhu'), xiaohua: x ?? emptyLog(date, 'xiaohua') } };
-}
-
-async function rejectSymlinkSegments(target: string): Promise<void> {
-  let current = config.dataRepo;
-  for (const segment of path.relative(config.dataRepo, target).split(path.sep).slice(0, -1)) {
-    current = path.join(current, segment);
-    if (await exists(current) && (await lstat(current)).isSymbolicLink()) throw new Error('路径中不允许符号链接');
-  }
-}
-
-export async function applyData(actor: PersonId, requestId: string, baseRevision: string, changes: Change[]): Promise<string> {
-  if (!changes.length || changes.length > 20) throw new Error('一次提交需要 1–20 个文件');
-  const current = await headRevision();
-  if (current !== baseRevision) throw new Error('数据已更新，请重新读取后再提交');
-  const unique = new Set<string>();
-  for (const change of changes) {
-    assertAllowedDataPath(change.path);
-    if (unique.has(change.path)) throw new Error(`重复路径：${change.path}`);
-    unique.add(change.path);
-    if (typeof change.content !== 'string') validateBusinessJson(change.path, change.content);
-    if (JSON.stringify(change.content).length > 512_000) throw new Error(`${change.path} 超过 512 KiB`);
-    await rejectSymlinkSegments(path.join(config.dataRepo, change.path));
-  }
-  const existed = new Set<string>();
-  try {
-    for (const change of changes) {
-      const target = path.join(config.dataRepo, change.path);
-      if (await exists(target)) existed.add(change.path);
-      await safeWrite(change.path, change.content);
-    }
-    await git(['add', '--', ...changes.map((change) => change.path)]);
-    await git(['commit', '-m', `data: ${actor} request ${requestId}`, '-m', `Request-Id: ${requestId}`]);
-    return await headRevision();
-  } catch (error) {
-    for (const change of changes) {
-      if (existed.has(change.path)) await git(['restore', '--source=HEAD', '--worktree', '--staged', '--', change.path]).catch(() => undefined);
-      else await rm(path.join(config.dataRepo, change.path), { force: true });
-    }
-    throw error;
-  }
 }
 
 export async function findRequestRevision(requestId: string): Promise<string | null> {

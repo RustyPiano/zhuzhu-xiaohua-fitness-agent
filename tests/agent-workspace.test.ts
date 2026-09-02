@@ -35,12 +35,14 @@ describe('isolated Agent workspace finalizer', () => {
     const workspaceModule = await import('../server/agent-workspace.js'); const workspace = await workspaceModule.prepareAgentWorkspace('zhuzhu', []);
     const log = emptyLog('2026-09-02', 'xiaohua');
     log.meals.push({ id: 'meal-1', meal: 'lunch', items: [], occurred_at: null, source: { recorded_by: 'xiaohua', request_id: 'spoofed', attachment_ids: ['not-allowed'], recorded_at: '2000-01-01T00:00:00.000Z' } });
+    log.measurements.push({ id: 'weight-1', metric: 'weight', value: 60, unit: 'kg', measured_at: null, notes: [], source: { recorded_by: 'xiaohua', request_id: 'spoofed', attachment_ids: ['not-allowed'], recorded_at: '2000-01-01T00:00:00.000Z' } });
     const target = path.join(workspace.data, 'logs', '2026-09-02', 'xiaohua.json'); await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, `${JSON.stringify(log, null, 2)}\n`);
     await rm(path.join(workspace.data, '.git'), { recursive: true, force: true });
     const result = await workspaceModule.finalizeDataWorkspace(workspace, 'zhuzhu', 'request-12345678', []);
     expect(result?.paths).toEqual(['logs/2026-09-02/xiaohua.json']);
     const saved = JSON.parse(await readFile(path.join(process.env.DATA_REPO, 'logs', '2026-09-02', 'xiaohua.json'), 'utf8'));
     expect(saved.meals[0].source).toMatchObject({ recorded_by: 'zhuzhu', request_id: 'request-12345678', attachment_ids: [] });
+    expect(saved.measurements[0].source).toMatchObject({ recorded_by: 'zhuzhu', request_id: 'request-12345678', attachment_ids: [] });
   });
 
   it('rejects a business date that disagrees with its path', async () => {

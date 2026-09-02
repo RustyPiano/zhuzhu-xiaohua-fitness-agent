@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import type { DayLog, MemoryFile, PersonId } from '../shared/contracts.js';
+import type { DayLog, MemoryFile, PersonId, SourceRef } from '../shared/contracts.js';
 import { assertAllowedDataPath, validateBusinessJson } from '../shared/validation.js';
 import { config } from './config.js';
 import { readAttachmentBytes } from './uploads.js';
@@ -122,7 +122,7 @@ export async function filesystemChanges(baseRoot: string, candidateRoot: string,
 }
 
 function normalizeLog(candidate: DayLog, previous: DayLog | null, actor: PersonId, requestId: string, attachmentIds: Set<string>, now: string): void {
-  const normalize = (entries: DayLog['meals'] | DayLog['sets'], oldEntries: DayLog['meals'] | DayLog['sets']) => {
+  const normalize = (entries: Array<{ id: string; source: SourceRef }>, oldEntries: Array<{ id: string; source: SourceRef }>) => {
     const oldById = new Map(oldEntries.map((entry) => [entry.id, entry.source]));
     for (const entry of entries) {
       const old = oldById.get(entry.id);
@@ -135,6 +135,8 @@ function normalizeLog(candidate: DayLog, previous: DayLog | null, actor: PersonI
   };
   normalize(candidate.meals, previous?.meals ?? []);
   normalize(candidate.sets, previous?.sets ?? []);
+  normalize(candidate.cardio, previous?.cardio ?? []);
+  normalize(candidate.measurements, previous?.measurements ?? []);
 }
 
 function normalizeMemory(candidate: MemoryFile, previous: MemoryFile | null, actor: PersonId, requestId: string, now: string): void {

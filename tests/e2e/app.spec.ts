@@ -11,9 +11,13 @@ async function login(page: Page, person: '珠珠' | '小花') {
 test('today view keeps identity and person filter separate', async ({ page }) => {
   await login(page, '珠珠');
   await expect(page.getByText('全身力量 · A')).toBeVisible();
+  await expect(page.getByText('小花专属硬拉')).toBeVisible();
+  await expect(page.getByText('30 kg × 12')).toBeVisible();
+  await expect(page.getByText('实际燕麦')).toBeVisible();
   await page.getByRole('button', { name: '小花', exact: true }).click();
   await expect(page.locator('.person-tabs .active')).toHaveText('小花');
   await expect(page.locator('.account-menu strong')).toHaveText('珠珠');
+  await expect(page.getByText('实际燕麦')).toBeHidden();
   await expect(page.locator('.exercise-row').first()).toBeVisible();
 });
 

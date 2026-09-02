@@ -14,7 +14,7 @@ import { currentUiSourceRevision, importUiWorkspace } from './ui-jobs.js';
 
 type PiSession = { prompt: (text: string, options?: Record<string, unknown>) => Promise<void>; subscribe: (fn: (event: any) => void) => () => void; abort: () => Promise<void>; dispose: () => void };
 export async function runAgent(initial: RequestRecord, signal: AbortSignal): Promise<void> {
-  if (process.env.NODE_ENV !== 'production' && process.env.DEV_MOCK_AGENT === 'true') {
+  if (config.devMockAgent) {
     const record = await loadRequest(initial.id);
     record.messages.push({ id: randomUUID(), role: 'assistant', text: '这是开发环境的明确替身回复；未调用模型，也没有保存任何业务数据。配置真实模型和 Agent 沙箱后会启用 Pi 会话、图片理解与原生工具。', attachment_ids: [], receipts: [], created_at: new Date().toISOString(), status: 'complete' });
     await saveRequest(record); return;

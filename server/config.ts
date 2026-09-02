@@ -33,6 +33,7 @@ export const config = {
   uiSandboxImage: process.env.UI_SANDBOX_IMAGE ?? null,
   devAuth: process.env.NODE_ENV !== 'production' && process.env.DEV_AUTH === 'true',
   devFixtures: process.env.NODE_ENV !== 'production' && process.env.DEV_FIXTURES === 'true',
+  devMockAgent: process.env.NODE_ENV !== 'production' && process.env.DEV_MOCK_AGENT === 'true',
 };
 
 if (config.webWarnMicrousd >= config.webStopMicrousd) throw new Error('WEB_WARN_USD 必须小于 WEB_STOP_USD');
