@@ -15,6 +15,7 @@ EnvironmentFile=/etc/fitness-agent.env
 ExecStart=/usr/bin/env corepack pnpm start
 Restart=on-failure
 RestartSec=5
+Delegate=yes
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

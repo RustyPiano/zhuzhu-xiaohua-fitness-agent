@@ -23,7 +23,7 @@
 5. 配置支持图片和工具调用的 `MODEL_PROVIDER`、`MODEL_ID`、`MODEL_API_KEY`；兼容代理另设 `MODEL_BASE_URL`，推理等级由 `MODEL_THINKING_LEVEL` 控制。密钥只放 EnvironmentFile。未实测视觉输入前，不得宣称图片理解已验收。
 6. 配置专用 `EXA_API_KEY`；在 Exa 账号中保持免费方案、不绑定支付方式，并真正关闭自动充值。核对当前定价与免费额度，应用内数字只是本地估算。
 7. 使用 `deploy/Containerfile.ui-check` 构建固定工具/检查镜像，记录不可变 digest，设置 `AGENT_SANDBOX_IMAGE` 和 `UI_SANDBOX_IMAGE`（可指向同一 digest）。若 Agent 沙箱不可用，已保存页面仍可读，但不得降级为在宿主机执行 Pi 工具。
-8. 安装 `deploy/fitness-agent.service`，替换服务账号和 EnvironmentFile 路径。确认 `StateDirectory`/`RuntimeDirectory` 归专用账号所有，rootless Podman 能使用其中的 `HOME`、`XDG_RUNTIME_DIR` 和默认存储；启动后先从回环地址验证 `/api/health`。
+8. 安装 `deploy/fitness-agent.service`，替换服务账号和 EnvironmentFile 路径。保留 `Delegate=yes`，并确认 `StateDirectory`/`RuntimeDirectory` 归专用账号所有，rootless Podman 能使用其中的 `HOME`、`XDG_RUNTIME_DIR` 和默认存储；启动后先从回环地址验证 `/api/health`。
 9. 配置反向代理，精确设置生产 origin；SSE 路径关闭代理缓冲。确认 Cookie、CSP、登录限速与 Origin 检查后才能公开。
 10. 用虚构营养标签执行一次真实视觉模型测试；执行一次真实 Exa Search 和一次 Contents；核对来源、正文、Exa 后台用量和本地预留。
    可用仅从环境读取凭据的 `pnpm test:integration` 重跑模型文字/图片/工具调用以及 Exa Search/Contents；该命令不进入 CI，也不使用真实身体资料。

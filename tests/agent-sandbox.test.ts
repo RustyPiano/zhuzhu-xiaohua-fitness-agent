@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { bashTimeoutMs, sandboxContainerArgs } from '../server/agent-sandbox.js';
@@ -24,6 +25,10 @@ describe('Agent sandbox command', () => {
     expect(args).toContain(PODMAN_KEEP_ID); expect(args).toContain('--network=none'); expect(args).toContain('--cap-drop=ALL');
     expect(args).toContain('/srv/fitness/runtime/ui-checks/candidate:/workspace:Z');
     expect(args.join('\n')).not.toContain('/srv/fitness/data-repo'); expect(args.join('\n')).not.toContain('/etc/fitness-agent.env'); expect(args.join('\n')).not.toContain('podman.sock');
+  });
+
+  it('delegates cgroups to the rootless Podman service', () => {
+    expect(readFileSync(path.resolve('deploy/fitness-agent.service'), 'utf8')).toContain('Delegate=yes');
   });
 
   it('converts Pi timeout seconds to milliseconds and caps it', () => {
