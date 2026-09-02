@@ -1,0 +1,18 @@
+fitness.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:8787 {
+    flush_interval -1
+  }
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  }
+}
+
+preview.example.com {
+  root * /srv/fitness/preview-current
+  file_server
+  header {
+    Content-Security-Policy "default-src 'self'; connect-src 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'"
+    Referrer-Policy "no-referrer"
+  }
+}

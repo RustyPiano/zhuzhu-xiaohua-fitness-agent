@@ -1,0 +1,25 @@
+[Unit]
+Description=Zhuzhu Xiaohua Fitness Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fitness
+Group=fitness
+WorkingDirectory=/srv/fitness/app-repo
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/fitness-agent.env
+ExecStart=/usr/bin/env corepack pnpm start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/fitness/data-repo /srv/fitness/runtime /srv/fitness/uploads /srv/fitness/releases /srv/fitness/ui-worktrees
+UMask=0077
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

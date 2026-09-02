@@ -1,0 +1,6 @@
+allowBuilds:
+  '@google/genai': false
+  esbuild: true
+  protobufjs: true
+minimumReleaseAgeExclude:
+  - typebox@1.3.24
