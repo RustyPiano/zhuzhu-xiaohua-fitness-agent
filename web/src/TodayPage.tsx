@@ -59,12 +59,14 @@ function Meter({ person, exercise, plan, log }: { person: PersonId; exercise: Ex
 function Training({ snapshot, visible }: { snapshot: DaySnapshot; visible: PersonId[] }) {
   const plan = snapshot.plan;
   const exercises = new Map<string, ExercisePlan>();
+  const cardio = visible.map((person) => ({ person, text: plan?.people[person].training.cardio })).filter((item): item is { person: PersonId; text: string } => typeof item.text === 'string' && item.text.trim().length > 0);
   for (const person of visible) for (const exercise of plan?.people[person].training.exercises ?? []) if (!exercises.has(exercise.exercise_id)) exercises.set(exercise.exercise_id, exercise);
   for (const person of visible) for (const set of snapshot.logs[person].sets) if (!exercises.has(set.exercise_id)) exercises.set(set.exercise_id, { exercise_id: set.exercise_id, name: set.exercise_id, equipment: set.equipment, sets: null, reps: null, load: null, load_unit: null, rest_seconds: null, notes: [] });
-  if (!exercises.size) return <EmptyBlock icon={<DumbbellIcon />} title="今天还没安排训练" text="去告诉饲养员，帮你排一次。" />;
+  if (!exercises.size && !cardio.length) return <EmptyBlock icon={<DumbbellIcon />} title="今天还没安排训练" text="去告诉饲养员，帮你排一次。" />;
   return <section className="activity-section">
     <SectionHeading icon={<DumbbellIcon />} title="训练" meta={plan?.title} />
-    <div className="ex-list">
+    {cardio.length ? <div className="cardio-plan" aria-label="有氧训练计划">{cardio.map(({ person, text }) => <div className={`cardio-plan-item ${person}`} key={person}><strong>{PERSON_LABEL[person]} · 有氧</strong><p>{text}</p></div>)}</div> : null}
+    {exercises.size ? <div className="ex-list">
       {[...exercises.values()].map((exercise) => <details className="ex-row" key={exercise.exercise_id}>
         <summary className="ex-summary">
           <span className="ex-name"><strong>{exercise.name}</strong><small>{exercise.equipment ?? '器械待补充'}</small></span>
@@ -78,7 +80,7 @@ function Training({ snapshot, visible }: { snapshot: DaySnapshot; visible: Perso
           {visible.flatMap((person) => snapshot.logs[person].sets.filter((set) => set.exercise_id === exercise.exercise_id).map((set) => <p className="ex-logged" key={`${person}-${set.id}`}><b className={person}>{PERSON_LABEL[person]}</b>{setText(set)}</p>))}
         </div>
       </details>)}
-    </div>
+    </div> : null}
   </section>;
 }
 

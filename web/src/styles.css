@@ -147,6 +147,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .section-meta { margin-left: auto; font: 600 12px/1 var(--mono); color: var(--muted); }
 
 /* training · pip meters */
+.cardio-plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.cardio-plan-item { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card-sunk); }
+.cardio-plan-item strong { font: 700 12px/1 var(--mono); color: var(--person-deep); }
+.cardio-plan-item p { margin: 7px 0 0; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
 .ex-list { display: flex; flex-direction: column; }
 .ex-row { border-bottom: 1px solid var(--line); }
 .ex-row:last-child { border-bottom: 0; }
