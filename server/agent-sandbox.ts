@@ -13,7 +13,6 @@ export const bashTimeoutMs = (seconds?: number): number => Math.min(seconds === 
 export function sandboxContainerArgs(workspace: AgentWorkspace, image: string, command: string[]): string[] {
   return ['run', '--rm', '--interactive', '--network=none', '--read-only', PODMAN_KEEP_ID, '--cap-drop=ALL', '--security-opt=no-new-privileges',
     '--pids-limit=256', '--memory=1g', '--cpus=2', '--ulimit', 'fsize=2097152:2097152', '--tmpfs', '/tmp:rw,noexec,nosuid,size=128m', '-e', 'HOME=/tmp/home',
-    '-e', 'npm_config_verify_deps_before_run=false',
     '-e', 'GIT_OPTIONAL_LOCKS=0', '-e', 'GIT_NO_REPLACE_OBJECTS=1',
     '-v', `${path.join(workspace.root, 'AGENTS.md')}:/workspace/AGENTS.md:ro,Z`, '-v', `${workspace.app}:/workspace/app:rw,Z`,
     '-v', `${path.join(workspace.app, '.git')}:/workspace/app/.git:ro,Z`, '-v', `${workspace.data}:/workspace/data:rw,Z`,
@@ -83,7 +82,7 @@ export function createSandboxTools(pi: PiModule, workspace: AgentWorkspace): any
   } });
   const bash = pi.createBashToolDefinition(workspace.root, { exposeSessionEnvironment: false, operations: {
     exec: async (command, _cwd, options) => {
-      const result = await execute(workspace, ['sh', '-lc', 'test -e app/node_modules || ln -s /opt/project/node_modules app/node_modules; ' + command], { signal: options.signal, timeout: options.timeout, onData: options.onData });
+      const result = await execute(workspace, ['sh', '-lc', 'pnpm() { command pnpm --config.verify-deps-before-run=false "$@"; }; test -e app/node_modules || ln -s /opt/project/node_modules app/node_modules; ' + command], { signal: options.signal, timeout: options.timeout, onData: options.onData });
       return { exitCode: result.exitCode };
     },
   } });

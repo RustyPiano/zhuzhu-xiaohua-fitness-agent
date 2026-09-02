@@ -12,7 +12,6 @@ describe('Agent sandbox command', () => {
     expect(args).toContain('--network=none'); expect(args).toContain('--read-only'); expect(args).toContain('--cap-drop=ALL');
     expect(args).toContain('--interactive');
     expect(args).toContain(PODMAN_KEEP_ID);
-    expect(args).toContain('npm_config_verify_deps_before_run=false');
     expect(args).toContain('fsize=2097152:2097152');
     const mounts = args.filter((value, index) => args[index - 1] === '-v').join('\n');
     expect(mounts).toContain(`${root}/app:/workspace/app:rw`); expect(mounts).toContain(`${root}/inbox:/workspace/inbox:ro`);
@@ -24,7 +23,7 @@ describe('Agent sandbox command', () => {
   it('uses the same writable-mount identity for UI checks', () => {
     const args = uiSandboxContainerArgs('/srv/fitness/runtime/ui-checks/candidate', 'fitness-agent-check:locked');
     expect(args).toContain(PODMAN_KEEP_ID); expect(args).toContain('--network=none'); expect(args).toContain('--cap-drop=ALL');
-    expect(args).toContain('npm_config_verify_deps_before_run=false');
+    expect(args.at(-1)).toContain('pnpm --config.verify-deps-before-run=false');
     expect(args).toContain('/srv/fitness/runtime/ui-checks/candidate:/workspace:Z');
     expect(args.join('\n')).not.toContain('/srv/fitness/data-repo'); expect(args.join('\n')).not.toContain('/etc/fitness-agent.env'); expect(args.join('\n')).not.toContain('podman.sock');
   });
