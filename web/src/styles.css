@@ -230,8 +230,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 }
 .new-thread:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
 .new-thread svg { width: 18px; height: 18px; color: var(--honey-deep); }
-.thread-item { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 13px 14px; border-radius: var(--radius-sm); border-left: 3px solid transparent; }
-.thread-item.active { background: var(--card); border-left-color: var(--person); box-shadow: var(--shadow-sm); }
+.thread-item { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding: 13px 14px; border-radius: var(--radius-sm); }
+.thread-item.active { background: var(--card); box-shadow: var(--shadow-sm); }
 .thread-item div { display: flex; flex-direction: column; gap: 3px; }
 .thread-item strong { font-size: 14px; }
 .thread-item small { font: 500 11px/1 var(--mono); color: var(--muted); }
@@ -266,7 +266,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 .message-meta strong { font-size: 13px; font-weight: 750; }
 .message-meta time, .message-meta span { font: 500 11px/1 var(--mono); color: var(--muted); }
 .message-text { width: fit-content; max-width: min(680px, 90%); white-space: pre-wrap; margin: 0; padding: 13px 16px; line-height: 1.7; font-size: 14.5px; overflow-wrap: anywhere; border-radius: 5px 17px 17px 17px; background: var(--card); box-shadow: var(--shadow-sm); }
-.assistant-message .message-text { border-left: 3px solid var(--honey); }
 .markdown-text > :first-child { margin-top: 0; }
 .markdown-text > :last-child { margin-bottom: 0; }
 .markdown-text p, .markdown-text ul, .markdown-text ol, .markdown-text blockquote, .markdown-text pre { margin: .65em 0; }
