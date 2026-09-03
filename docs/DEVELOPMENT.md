@@ -89,6 +89,8 @@ type MemorySubject = PersonId | 'shared';
 
 首页直接读取文件快照，不调用模型。模型服务不可用时，已经保存的计划和日志仍可查看。
 
+“今天”下提供一个近 7 天二级回顾视图：在同一 data revision 上展示已记录的餐食、力量组、有氧、测量、体重趋势和最近活动。未记录日期显示“暂无记录”，不计为零或未完成；复盘与下周安排仍只是将日期和人物上下文送入 Agent。
+
 首页不建设通用编辑表单。可以保留“记录一组”“按这餐吃了”等按钮，但它们只是把带有人物、日期和条目引用的文本送入同一个 Agent 入口，不另建一套独立写入逻辑。
 
 ### 3.2 Agent
@@ -577,6 +579,7 @@ Finalizer 对一个请求最多产生一次成功的批量业务提交。请求�
 | `POST /api/login`、`POST /api/logout` | 两个固定账号登录、退出 |
 | `GET /api/bootstrap` | 当前身份、时区、共享状态、前端版本、图片上限、联网能力及本地月度预算状态 |
 | `GET /api/day?date=YYYY-MM-DD` | 固定 revision 的计划和实际日志 |
+| `GET /api/review?end=YYYY-MM-DD` | 同一 revision 上、截止该日的近 7 天计划与实际日志 |
 | `GET /api/thread` | 当前账号的当前会话记录 |
 | `POST /api/messages` | 创建幂等 Agent 任务，返回 request ID |
 | `GET /api/requests/:id` | 查询状态、终态回执及结果 |

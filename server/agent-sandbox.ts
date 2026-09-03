@@ -68,17 +68,17 @@ function requestedPath(value: unknown): string {
 export function createSandboxTools(pi: PiModule, workspace: AgentWorkspace): any[] {
   const read = pi.createReadToolDefinition(workspace.root, { operations: {
     readFile: (absolute) => checked(workspace, ['sh', '-c', 'cat -- "$1"', 'sh', containerPath(workspace, absolute)]),
-    access: async (absolute) => { await checked(workspace, ['sh', '-c', 'test -r "$1"', 'sh', containerPath(workspace, absolute)]); },
+    access: () => Promise.resolve(),
     detectImageMimeType: async () => null,
   } });
   const write = pi.createWriteToolDefinition(workspace.root, { operations: {
-    mkdir: async (absolute) => { await checked(workspace, ['sh', '-c', 'mkdir -p -- "$1"', 'sh', containerPath(workspace, absolute)]); },
+    mkdir: () => Promise.resolve(),
     writeFile: (absolute, content) => writeSandboxFile(workspace, absolute, content),
   } });
   const edit = pi.createEditToolDefinition(workspace.root, { operations: {
     readFile: (absolute) => checked(workspace, ['sh', '-c', 'cat -- "$1"', 'sh', containerPath(workspace, absolute)]),
     writeFile: (absolute, content) => writeSandboxFile(workspace, absolute, content),
-    access: async (absolute) => { await checked(workspace, ['sh', '-c', 'test -r "$1" && test -w "$1"', 'sh', containerPath(workspace, absolute)]); },
+    access: () => Promise.resolve(),
   } });
   const bash = pi.createBashToolDefinition(workspace.root, { exposeSessionEnvironment: false, operations: {
     exec: async (command, _cwd, options) => {

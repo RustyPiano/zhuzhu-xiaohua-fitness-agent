@@ -31,6 +31,11 @@ const memory = Type.Object({ schema_version: Type.Literal(1), items: Type.Array(
 const ui = Type.Object({ schema_version: Type.Literal(1), theme: Type.Union([Type.Literal('light'), Type.Literal('dark')]), compact: Type.Boolean() }, { additionalProperties: false });
 
 export function isPerson(value: unknown): value is PersonId { return typeof value === 'string' && PERSONS.includes(value as PersonId); }
+export function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !DATE_RE.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
 
 function check(schema: TSchema, value: unknown, label: string): void {
   if (Value.Check(schema, value)) return;

@@ -12,6 +12,7 @@
 8. 联网调用先在请求元数据写入微美元预留，再发 HTTP；两人和 UI 任务共用 $8 提醒/$9 停止线。超时、取消或缺失成本不会按零计费。
 9. Agent 可在隔离 app 副本中检视全仓，Finalizer 只复制 `web/src` 与 `web/public` 到可信 Git worktree，其他路径不可发布。容器和宿主检查限制单文件、总大小与文件数。候选位于预览 origin 的 `/candidates/<job-id>/`，只使用构建时虚构数据；生产产物单独生成。发布和 `/ops` 回滚整体绑定源码 revision、产物路径与哈希，并通过操作记录和 Git trailer 恢复崩溃窗口。
 10. 运行时 Agent 不执行 `pnpm`。数据请求只走宿主业务校验；仅当 `web/src` 或 `web/public` 确有变化时才创建 UI worktree，固定检查为前端 TypeScript、生产构建和预览构建。整仓 typecheck/test/build 只用于开发者修改仓库或发布前验收。
+11. “今天”包含一个近 7 天二级回顾页；服务端一次固定 data revision 后并行读取 7 天，前端只统计已记录的条目，并通过带人物和日期的文本继续使用同一 Agent 写入入口。
 
 ## 部署步骤
 

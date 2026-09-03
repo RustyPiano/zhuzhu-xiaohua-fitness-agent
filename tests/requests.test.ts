@@ -15,10 +15,28 @@ describe('idempotent request records include attachments', () => {
     temporary = await mkdtemp(path.join(os.tmpdir(), 'fitness-request-'));
     process.env.RUNTIME_DIR = temporary;
     const { createRequest } = await import('../server/requests.js');
-    const input = { id: 'request_12345678', actor: 'zhuzhu' as const, text: '记录午餐', attachment_ids: ['a'], attachment_hashes: ['hash-a'] };
+    const input = { id: 'request_12345678', actor: 'zhuzhu' as const, text: '记录午餐', attachment_ids: ['a', 'b'], attachment_hashes: ['hash-a', 'hash-b'] };
     expect((await createRequest(input)).existing).toBe(false);
     expect((await createRequest(input)).existing).toBe(true);
-    await expect(createRequest({ ...input, attachment_hashes: ['hash-b'] })).rejects.toThrow('内容或附件已改变');
+    await expect(createRequest({ ...input, attachment_hashes: ['hash-c', 'hash-b'] })).rejects.toThrow('内容或附件已改变');
+    await expect(createRequest({ ...input, attachment_ids: ['b', 'a'], attachment_hashes: ['hash-b', 'hash-a'] })).rejects.toThrow('内容或附件已改变');
+  });
+
+  it('emits done for failed and queued-cancelled requests', async () => {
+    temporary = await mkdtemp(path.join(os.tmpdir(), 'fitness-request-')); process.env.RUNTIME_DIR = temporary;
+    const requests = await import('../server/requests.js');
+    const failed = (await requests.createRequest({ id: 'request_failed_1', actor: 'zhuzhu', text: '失败请求', attachment_ids: [], attachment_hashes: [] })).record;
+    const failedEvents: string[] = []; const failedDone = new Promise<void>((resolve) => requests.subscribe(failed.id, ({ event }) => { failedEvents.push(event); if (event === 'done') resolve(); }));
+    requests.enqueue(failed.id, async () => { throw new Error('模拟失败'); }); await failedDone;
+    expect((await requests.loadRequest(failed.id)).status).toBe('error'); expect(failedEvents).toContain('error');
+
+    let release!: () => void; const blocker = new Promise<void>((resolve) => { release = resolve; });
+    const first = (await requests.createRequest({ id: 'request_blocker', actor: 'zhuzhu', text: '占用队列', attachment_ids: [], attachment_hashes: [] })).record;
+    const firstDone = new Promise<void>((resolve) => requests.subscribe(first.id, ({ event }) => { if (event === 'done') resolve(); })); requests.enqueue(first.id, async () => blocker);
+    const queued = (await requests.createRequest({ id: 'request_queued_1', actor: 'zhuzhu', text: '等待取消', attachment_ids: [], attachment_hashes: [] })).record; requests.enqueue(queued.id, async () => undefined);
+    const cancelledDone = new Promise<void>((resolve) => requests.subscribe(queued.id, ({ event }) => { if (event === 'done') resolve(); }));
+    await requests.cancelRequest(queued.id, 'zhuzhu'); await cancelledDone; release(); await firstDone;
+    expect((await requests.loadRequest(queued.id)).status).toBe('cancelled');
   });
 
   it('persists new-session generation across module reloads', async () => {

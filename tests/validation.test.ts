@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { assertAllowedDataPath, validateBusinessJson } from '../shared/validation.js';
+import { assertAllowedDataPath, isCalendarDate, validateBusinessJson } from '../shared/validation.js';
 import { emptyLog } from '../shared/contracts.js';
 
 describe('data boundary', () => {
+  it('accepts only real calendar dates', () => {
+    expect(isCalendarDate('2024-02-29')).toBe(true);
+    expect(isCalendarDate('2026-02-31')).toBe(false);
+    expect(isCalendarDate('2026-99-99')).toBe(false);
+  });
   it.each(['../secrets', '/etc/passwd', 'logs/2026-09-01/../../x.json', '.git/config', 'server/index.ts'])('rejects unsafe path %s', (value) => {
     expect(() => assertAllowedDataPath(value)).toThrow();
   });

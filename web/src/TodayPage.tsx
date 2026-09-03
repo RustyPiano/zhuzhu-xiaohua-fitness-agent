@@ -3,6 +3,7 @@ import type { DayLog, DayPlan, DaySnapshot, ExercisePlan, MealItem, MeasurementL
 import { PERSON_LABEL } from '../../shared/contracts';
 import { summarizeNutrition } from '../../shared/calculations';
 import { getDay } from './api';
+import { DayViewSwitch } from './DayViewSwitch';
 import { CalendarIcon, ChevronIcon, DumbbellIcon, EditIcon, MealIcon, ScaleIcon } from './icons';
 
 const people: PersonId[] = ['zhuzhu', 'xiaohua'];
@@ -56,16 +57,20 @@ function Meter({ person, exercise, plan, log }: { person: PersonId; exercise: Ex
   </span>;
 }
 
-function Training({ snapshot, visible }: { snapshot: DaySnapshot; visible: PersonId[] }) {
+function Training({ snapshot, visible, onAskAgent }: { snapshot: DaySnapshot; visible: PersonId[]; onAskAgent: (text: string) => void }) {
   const plan = snapshot.plan;
   const exercises = new Map<string, ExercisePlan>();
-  const cardio = visible.map((person) => ({ person, text: plan?.people[person].training.cardio })).filter((item): item is { person: PersonId; text: string } => typeof item.text === 'string' && item.text.trim().length > 0);
+  const cardioPlans = visible.map((person) => ({ person, text: plan?.people[person].training.cardio })).filter((item): item is { person: PersonId; text: string } => typeof item.text === 'string' && item.text.trim().length > 0);
+  const cardioLogs = visible.flatMap((person) => snapshot.logs[person].cardio.map((cardio) => ({ person, cardio })));
   for (const person of visible) for (const exercise of plan?.people[person].training.exercises ?? []) if (!exercises.has(exercise.exercise_id)) exercises.set(exercise.exercise_id, exercise);
   for (const person of visible) for (const set of snapshot.logs[person].sets) if (!exercises.has(set.exercise_id)) exercises.set(set.exercise_id, { exercise_id: set.exercise_id, name: set.exercise_id, equipment: set.equipment, sets: null, reps: null, load: null, load_unit: null, rest_seconds: null, notes: [] });
-  if (!exercises.size && !cardio.length) return <EmptyBlock icon={<DumbbellIcon />} title="今天还没安排训练" text="去告诉饲养员，帮你排一次。" />;
+  if (!exercises.size && !cardioPlans.length && !cardioLogs.length) return <EmptyBlock icon={<DumbbellIcon />} title="今天还没安排训练" text="去告诉饲养员，帮你排一次。" />;
   return <section className="activity-section">
     <SectionHeading icon={<DumbbellIcon />} title="训练" meta={plan?.title} />
-    {cardio.length ? <div className="cardio-plan" aria-label="有氧训练计划">{cardio.map(({ person, text }) => <div className={`cardio-plan-item ${person}`} key={person}><strong>{PERSON_LABEL[person]} · 有氧</strong><p>{text}</p></div>)}</div> : null}
+    {cardioPlans.length || cardioLogs.length ? <div className="cardio-plan" aria-label="有氧训练">
+      {cardioPlans.map(({ person, text }) => <div className={`cardio-plan-item ${person}`} key={`plan-${person}`}><strong>{PERSON_LABEL[person]} · 计划</strong><p>{text}</p></div>)}
+      {cardioLogs.map(({ person, cardio }) => <div className={`cardio-plan-item cardio-logged ${person}`} key={`${person}-${cardio.id}`}><strong>{PERSON_LABEL[person]} · 已记录</strong><p>{[cardio.activity, cardio.duration_minutes === null ? null : `${cardio.duration_minutes} 分钟`, cardio.distance_km === null ? null : `${cardio.distance_km} km`, cardio.intensity].filter(Boolean).join(' · ')}</p>{cardio.notes.length ? <small>{cardio.notes.join(' · ')}</small> : null}</div>)}
+    </div> : null}
     {exercises.size ? <div className="ex-list">
       {[...exercises.values()].map((exercise) => <details className="ex-row" key={exercise.exercise_id}>
         <summary className="ex-summary">
@@ -78,6 +83,7 @@ function Training({ snapshot, visible }: { snapshot: DaySnapshot; visible: Perso
           {exercise.notes.length ? <ul>{exercise.notes.map((note) => <li key={note}>{note}</li>)}</ul> : <p>暂无备注</p>}
           <p className="ex-rest">{exercise.rest_seconds ? `组间休息 ${exercise.rest_seconds} 秒` : '休息时长待补充'}</p>
           {visible.flatMap((person) => snapshot.logs[person].sets.filter((set) => set.exercise_id === exercise.exercise_id).map((set) => <p className="ex-logged" key={`${person}-${set.id}`}><b className={person}>{PERSON_LABEL[person]}</b>{setText(set)}</p>))}
+          <div className="context-actions">{visible.map((person) => <button type="button" key={person} onClick={() => onAskAgent(`请给${PERSON_LABEL[person]}记录 ${snapshot.date} 的${exercise.name}一组：`)}>给{PERSON_LABEL[person]}记一组</button>)}</div>
         </div>
       </details>)}
     </div> : null}
@@ -102,7 +108,7 @@ function NutritionCard({ person, plan, log }: { person: PersonId; plan: DayPlan 
   </div>;
 }
 
-function Meals({ plan, logs, visible }: { plan: DayPlan | null; logs: Record<PersonId, DayLog>; visible: PersonId[] }) {
+function Meals({ date, plan, logs, visible, onAskAgent }: { date: string; plan: DayPlan | null; logs: Record<PersonId, DayLog>; visible: PersonId[]; onAskAgent: (text: string) => void }) {
   const kinds = mealOrder.filter((kind) => visible.some((person) => plan?.people[person].nutrition.meals.some((meal) => meal.meal === kind) || logs[person].meals.some((meal) => meal.meal === kind)));
   if (!kinds.length) return <EmptyBlock icon={<MealIcon />} title="今天还没安排饮食" text="吃完记一笔，或让饲养员帮你排。" />;
   return <section className="activity-section">
@@ -116,11 +122,13 @@ function Meals({ plan, logs, visible }: { plan: DayPlan | null; logs: Record<Per
             const logged = logs[person].meals.filter((meal) => meal.meal === kind).flatMap((meal) => meal.items);
             const planned = plan?.people[person].nutrition.meals.find((meal) => meal.meal === kind)?.items ?? [];
             if (!logged.length && !planned.length) return null;
-            const items = logged.length ? logged : planned;
             return <div className={`meal-person ${person}`} key={person}>
               <span className="meal-who">{PERSON_LABEL[person]}</span>
-              <span className="meal-chips">{items.map((item) => <b className={logged.length ? 'chip logged' : 'chip planned'} key={item.id}>{item.name}<small>{itemAmount(item)}</small></b>)}</span>
-              <span className="meal-state">{logged.length ? '已记' : '待记录'}</span>
+              <span className="meal-entries">
+                {planned.length ? <span className="meal-entry"><small className="meal-source">计划</small><span className="meal-chips">{planned.map((item) => <b className="chip planned" key={item.id}>{item.name}<small>{itemAmount(item)}</small></b>)}</span></span> : null}
+                {logged.length ? <span className="meal-entry"><small className="meal-source actual">实际</small><span className="meal-chips">{logged.map((item) => <b className="chip logged" key={item.id}>{item.name}<small>{itemAmount(item)}</small></b>)}</span></span> : null}
+              </span>
+              {planned.length ? <button type="button" className="context-link" onClick={() => onAskAgent(`请给${PERSON_LABEL[person]}记录 ${date} 的${mealLabel[kind]}，按计划吃了：${planned.map((item) => `${item.name} ${itemAmount(item)}`).join('、')}。`)}>按这餐吃了</button> : null}
             </div>;
           })}
         </div>
@@ -149,12 +157,12 @@ function EmptyBlock({ icon, title, text }: { icon: ReactNode; title: string; tex
   return <section className="empty-block"><span className="empty-icon">{icon}</span><h2>{title}</h2><p>{text}</p></section>;
 }
 
-export function TodayPage({ initialDate, onAskAgent }: { initialDate: string; onAskAgent: (text: string) => void }) {
-  const [date, setDate] = useState(initialDate);
+export function TodayPage({ actor, today, initialDate, onDateChange, onShowReview, onAskAgent }: { actor: PersonId; today: string; initialDate: string; onDateChange: (date: string) => void; onShowReview: () => void; onAskAgent: (text: string) => void }) {
+  const date = initialDate;
   const [view, setView] = useState<ViewSubject>('shared');
   const [snapshot, setSnapshot] = useState<DaySnapshot | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { let active = true; setError(''); getDay(date).then((value) => { if (active) setSnapshot(value); }).catch((reason) => { if (active) setError(reason.message); }); return () => { active = false; }; }, [date]);
+  useEffect(() => { let active = true; setError(''); setSnapshot(null); getDay(date).then((value) => { if (active) setSnapshot(value); }).catch((reason) => { if (active) setError(reason.message); }); return () => { active = false; }; }, [date]);
   useEffect(() => { const refresh = () => void getDay(date).then(setSnapshot).catch(() => {}); window.addEventListener('focus', refresh); return () => window.removeEventListener('focus', refresh); }, [date]);
   const visible = useMemo<PersonId[]>(() => view === 'shared' ? people : [view], [view]);
   const stamp = new Date(`${date}T12:00:00`);
@@ -163,20 +171,28 @@ export function TodayPage({ initialDate, onAskAgent }: { initialDate: string; on
   return <main className="today-page">
     <div className="board-head">
       <div className="board-date">
-        <span className="board-eyebrow">{date === initialDate ? '今天' : '回看这一天'}</span>
+        <span className="board-eyebrow">{date === today ? '今天' : '回看这一天'}</span>
         <h1>{monthDay}</h1>
-        <label className="date-control"><CalendarIcon /><span>{weekday} · 换一天</span><input aria-label="选择日期" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+        <label className="date-control"><CalendarIcon /><span>{weekday} · 换一天</span><input aria-label="选择日期" type="date" value={date} onChange={(event) => onDateChange(event.target.value)} /></label>
       </div>
-      <div className="vitality-marks" role="group" aria-label="查看人物">
-        {snapshot ? people.map((person) => <Vitality key={person} person={person} log={snapshot.logs[person]} pressed={view === person} dimmed={view !== 'shared' && view !== person} onSelect={() => setView(person)} />) : null}
-        <button type="button" className={`vitality-both${view === 'shared' ? ' pressed' : ''}`} aria-pressed={view === 'shared'} onClick={() => setView('shared')}>两人一起</button>
+      <div className="board-tools">
+        <DayViewSwitch mode="day" onSelect={(mode) => { if (mode === 'review') onShowReview(); }} />
+        <div className="vitality-marks" role="group" aria-label="查看人物">
+          {snapshot ? people.map((person) => <Vitality key={person} person={person} log={snapshot.logs[person]} pressed={view === person} dimmed={view !== 'shared' && view !== person} onSelect={() => setView(person)} />) : null}
+          <button type="button" className={`vitality-both${view === 'shared' ? ' pressed' : ''}`} aria-pressed={view === 'shared'} onClick={() => setView('shared')}>两人一起</button>
+        </div>
       </div>
     </div>
     {error
       ? <p className="inline-error" role="alert">{error}</p>
       : snapshot
-        ? <div className="day-content"><Measurements logs={snapshot.logs} visible={visible} /><Training snapshot={snapshot} visible={visible} /><Meals plan={snapshot.plan} logs={snapshot.logs} visible={visible} /></div>
+        ? <div className="day-content"><Measurements logs={snapshot.logs} visible={visible} /><Training snapshot={snapshot} visible={visible} onAskAgent={onAskAgent} /><Meals date={date} plan={snapshot.plan} logs={snapshot.logs} visible={visible} onAskAgent={onAskAgent} /></div>
         : <div className="loading-line">正在打开这一天…</div>}
-    <footer className="today-footer"><button type="button" className="primary-action" onClick={() => onAskAgent(`请帮我记录 ${date} 的情况。`)}><EditIcon />交给饲养员记一笔</button></footer>
+    <footer className="today-footer"><div className="today-quick-actions">
+      <button type="button" onClick={() => onAskAgent(`请给${PERSON_LABEL[view === 'shared' ? actor : view]}记录 ${date} 的一顿饭：`)}>记一顿饭</button>
+      <button type="button" onClick={() => onAskAgent(`请给${PERSON_LABEL[view === 'shared' ? actor : view]}记录 ${date} 的训练：`)}>记训练</button>
+      <button type="button" onClick={() => onAskAgent(`请给${PERSON_LABEL[view === 'shared' ? actor : view]}记录 ${date} 的体重：`)}>记体重</button>
+      <button type="button" className="primary-action" onClick={() => onAskAgent(`请帮${PERSON_LABEL[view === 'shared' ? actor : view]}记录 ${date} 的情况。`)}><EditIcon />交给饲养员记一笔</button>
+    </div></footer>
   </main>;
 }

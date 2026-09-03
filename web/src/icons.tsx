@@ -14,3 +14,4 @@ export const ChevronIcon = (props: Props) => <svg {...base} {...props}><path d="
 export const EditIcon = (props: Props) => <svg {...base} {...props}><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>;
 export const StopIcon = (props: Props) => <svg {...base} {...props}><rect x="7" y="7" width="10" height="10" rx="1"/></svg>;
 export const SproutIcon = (props: Props) => <svg {...base} {...props}><path d="M12 21v-7"/><path d="M12 14c0-3 2-5 5-5 0 3-2 5-5 5Z"/><path d="M12 15c0-2.5-1.8-4.5-4.5-4.5C7.5 13 9.3 15 12 15Z"/><path d="M8 21h8"/></svg>;
+export const ActivityIcon = (props: Props) => <svg {...base} {...props}><circle cx="15.5" cy="4.5" r="2"/><path d="m13 8-3 4 3 2 2 5M13 8l3 3 3-1M10 12l-4-1M10 16l-3 4"/></svg>;

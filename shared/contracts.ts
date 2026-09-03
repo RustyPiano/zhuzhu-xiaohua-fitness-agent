@@ -141,6 +141,13 @@ export type DaySnapshot = {
   logs: Record<PersonId, DayLog>;
 };
 
+export type ReviewSnapshot = {
+  revision: string;
+  start: string;
+  end: string;
+  days: Array<Omit<DaySnapshot, 'revision'>>;
+};
+
 export type AttachmentMeta = {
   id: string;
   owner: PersonId;

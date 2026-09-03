@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import type { DayLog, DayPlan, DaySnapshot, MemoryFile, PersonId, PersonProfile } from '../shared/contracts.js';
+import type { DayLog, DayPlan, DaySnapshot, MemoryFile, PersonId, PersonProfile, ReviewSnapshot } from '../shared/contracts.js';
 import { emptyLog } from '../shared/contracts.js';
 import { assertAllowedDataPath } from '../shared/validation.js';
 import { config } from './config.js';
@@ -82,14 +82,35 @@ async function readAt<T>(revision: string, relative: string): Promise<T | null> 
   try { return JSON.parse(await git(['show', `${revision}:${relative}`])) as T; } catch { return null; }
 }
 
-export async function daySnapshot(date: string): Promise<DaySnapshot> {
-  const revision = await headRevision();
+async function readDayAt(revision: string, date: string): Promise<Omit<DaySnapshot, 'revision'>> {
   const [plan, z, x] = await Promise.all([
     readAt<DayPlan>(revision, `plans/${date}.json`),
     readAt<DayLog>(revision, `logs/${date}/zhuzhu.json`),
     readAt<DayLog>(revision, `logs/${date}/xiaohua.json`),
   ]);
-  return { revision, date, plan, logs: { zhuzhu: z ?? emptyLog(date, 'zhuzhu'), xiaohua: x ?? emptyLog(date, 'xiaohua') } };
+  return { date, plan, logs: { zhuzhu: z ?? emptyLog(date, 'zhuzhu'), xiaohua: x ?? emptyLog(date, 'xiaohua') } };
+}
+
+export async function daySnapshot(date: string): Promise<DaySnapshot> {
+  const revision = await headRevision();
+  return { revision, ...await readDayAt(revision, date) };
+}
+
+function shiftDate(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+export async function reviewSnapshot(endDate: string): Promise<ReviewSnapshot> {
+  const revision = await headRevision();
+  const dates = Array.from({ length: 7 }, (_, index) => shiftDate(endDate, index - 6));
+  return {
+    revision,
+    start: dates[0],
+    end: endDate,
+    days: await Promise.all(dates.map((date) => readDayAt(revision, date))),
+  };
 }
 
 export async function findRequestRevision(requestId: string): Promise<string | null> {

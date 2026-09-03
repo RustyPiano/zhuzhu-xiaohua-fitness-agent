@@ -6,13 +6,13 @@ import { streamSSE } from 'hono/streaming';
 import { secureHeaders } from 'hono/secure-headers';
 import { login, logout, requireAuth, requireExactOrigin } from './auth.js';
 import { businessDate, config } from './config.js';
-import { daySnapshot, ensureDataRepo } from './data-repo.js';
+import { daySnapshot, ensureDataRepo, reviewSnapshot } from './data-repo.js';
 import { webBudgetStatus } from './exa.js';
 import { runAgent } from './agent.js';
 import { cancelRequest, createRequest, enqueue, listActorMessages, loadRequest, markInterruptedRequests, markNewThread, subscribe } from './requests.js';
 import { assertAttachmentAccess, readAttachmentBytes, readAttachmentMeta, saveUpload, uploadLimits } from './uploads.js';
 import { currentWebRoot, deploymentInfo, publishUiJob, recoverUiDeployment, rollbackUi } from './ui-jobs.js';
-import { DATE_RE } from '../shared/validation.js';
+import { isCalendarDate } from '../shared/validation.js';
 
 const app = new Hono();
 app.use('*', secureHeaders({
@@ -43,8 +43,12 @@ app.get('/api/bootstrap', async (c) => {
 });
 
 app.get('/api/day', async (c) => {
-  const date = c.req.query('date') ?? businessDate(); if (!DATE_RE.test(date)) return c.json({ error: '日期格式应为 YYYY-MM-DD' }, 400);
+  const date = c.req.query('date') ?? businessDate(); if (!isCalendarDate(date)) return c.json({ error: '日期应为有效的 YYYY-MM-DD' }, 400);
   return c.json(await daySnapshot(date));
+});
+app.get('/api/review', async (c) => {
+  const end = c.req.query('end') ?? businessDate(); if (!isCalendarDate(end)) return c.json({ error: '日期应为有效的 YYYY-MM-DD' }, 400);
+  return c.json(await reviewSnapshot(end));
 });
 app.get('/api/thread', async (c) => c.json({ messages: await listActorMessages(c.get('actor')) }));
 app.post('/api/thread/new', async (c) => {
@@ -83,6 +87,8 @@ app.get('/api/requests/:id/events', async (c) => {
     let closed = false;
     const unsubscribe = subscribe(id, ({ event, data }) => { if (!closed) void stream.writeSSE({ event, data: JSON.stringify(data) }); });
     stream.onAbort(() => { closed = true; unsubscribe(); });
+    const current = await loadRequest(id);
+    if (['done', 'error', 'cancelled', 'interrupted'].includes(current.status)) { await stream.writeSSE({ event: 'done', data: JSON.stringify({ status: current.status }) }); closed = true; unsubscribe(); return; }
     while (!closed) { await stream.sleep(15_000); await stream.writeSSE({ event: 'ping', data: '{}' }); const latest = await loadRequest(id); if (['done', 'error', 'cancelled', 'interrupted'].includes(latest.status)) { await stream.writeSSE({ event: 'done', data: JSON.stringify({ status: latest.status }) }); break; } }
     closed = true; unsubscribe();
   });
@@ -124,7 +130,7 @@ app.get('*', async (c) => {
   if (!target.startsWith(`${path.resolve(root)}${path.sep}`) && target !== path.resolve(root, 'index.html')) return c.notFound();
   try { if (!(await stat(target)).isFile()) throw new Error('not file'); }
   catch { target = path.resolve(root, 'index.html'); }
-  try { const bytes = await readFile(target); return new Response(new Uint8Array(bytes), { headers: { 'content-type': MIME[path.extname(target)] ?? 'application/octet-stream' } }); }
+  try { const bytes = await readFile(target); const relative = path.relative(root, target).split(path.sep).join('/'); return new Response(new Uint8Array(bytes), { headers: { 'content-type': MIME[path.extname(target)] ?? 'application/octet-stream', 'cache-control': relative.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' } }); }
   catch { return c.text('前端尚未构建。请先运行 pnpm build。', 503); }
 });
 

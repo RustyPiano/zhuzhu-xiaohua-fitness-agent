@@ -72,20 +72,19 @@ export function enqueue(id: string, runner: (record: RequestRecord, signal: Abor
   controllers.set(id, controller);
   queueTail = queueTail.then(async () => {
     const record = await loadRequest(id);
-    if (record.status !== 'queued') return;
+    if (record.status !== 'queued') { controllers.delete(id); return; }
     record.status = 'running'; await saveRequest(record); emit(id, 'status', { status: 'running' });
     try {
       await runner(record, controller.signal);
       const latest = await loadRequest(id);
       if (latest.status === 'running') { latest.status = 'done'; await saveRequest(latest); }
-      emit(id, 'done', { status: (await loadRequest(id)).status });
     } catch (error) {
       const latest = await loadRequest(id);
       latest.status = controller.signal.aborted ? 'cancelled' : 'error';
       latest.error = error instanceof Error ? error.message : '请求失败';
       if (!latest.messages.some((message) => message.role === 'assistant' && message.status === 'error')) latest.messages.push({ id: randomUUID(), role: 'assistant', text: latest.error, attachment_ids: [], receipts: [], created_at: new Date().toISOString(), status: 'error' });
       await saveRequest(latest); emit(id, 'error', { error: latest.error });
-    } finally { controllers.delete(id); }
+    } finally { controllers.delete(id); const status = (await loadRequest(id)).status; if (['done', 'error', 'cancelled', 'interrupted'].includes(status)) emit(id, 'done', { status }); }
   }).catch(() => undefined);
 }
 
@@ -94,7 +93,7 @@ export async function cancelRequest(id: string, actor: PersonId): Promise<void> 
   const record = await loadRequest(id);
   if (record.actor !== actor) throw new Error('无权访问此请求');
   controllers.get(id)?.abort();
-  if (record.status === 'queued') { record.status = 'cancelled'; await saveRequest(record); }
+  if (record.status === 'queued') { record.status = 'cancelled'; await saveRequest(record); emit(id, 'done', { status: record.status }); }
 }
 
 export function emit(id: string, event: string, data: unknown): void { emitters.get(id)?.emit('event', { event, data }); }

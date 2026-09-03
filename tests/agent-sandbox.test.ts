@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { bashTimeoutMs, sandboxContainerArgs } from '../server/agent-sandbox.js';
+import { bashTimeoutMs, createSandboxTools, sandboxContainerArgs } from '../server/agent-sandbox.js';
 import { PODMAN_KEEP_ID } from '../server/podman.js';
 import { uiSandboxContainerArgs } from '../server/ui-jobs.js';
 
@@ -35,5 +35,21 @@ describe('Agent sandbox command', () => {
 
   it('converts Pi timeout seconds to milliseconds and caps it', () => {
     expect(bashTimeoutMs()).toBe(120_000); expect(bashTimeoutMs(300)).toBe(300_000); expect(bashTimeoutMs(2_000)).toBe(900_000);
+  });
+
+  it('leaves preflight operations to the real sandbox read or write', async () => {
+    const operations: Record<string, any> = {};
+    const pi = {
+      createReadToolDefinition: (_cwd: string, options: any) => { operations.read = options.operations; return {}; },
+      createWriteToolDefinition: (_cwd: string, options: any) => { operations.write = options.operations; return {}; },
+      createEditToolDefinition: (_cwd: string, options: any) => { operations.edit = options.operations; return {}; },
+      createBashToolDefinition: () => ({}), createGrepToolDefinition: () => ({}),
+      createFindToolDefinition: () => ({}), createLsToolDefinition: () => ({}),
+    };
+    const root = path.join('/srv/fitness/runtime', 'agent-workspaces', 'zhuzhu');
+    createSandboxTools(pi as any, { root, app: path.join(root, 'app'), data: path.join(root, 'data'), inbox: path.join(root, 'inbox'), appBaseRevision: 'a', dataBaseRevision: 'b' });
+    await expect(operations.read.access('/missing')).resolves.toBeUndefined();
+    await expect(operations.write.mkdir('/missing')).resolves.toBeUndefined();
+    await expect(operations.edit.access('/missing')).resolves.toBeUndefined();
   });
 });

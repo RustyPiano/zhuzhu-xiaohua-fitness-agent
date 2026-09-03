@@ -1,4 +1,4 @@
-import type { Bootstrap, DayPlan, DaySnapshot, ThreadMessage } from '../../shared/contracts';
+import type { Bootstrap, DayPlan, DaySnapshot, ReviewSnapshot, ThreadMessage } from '../../shared/contracts';
 import { emptyLog } from '../../shared/contracts';
 
 export class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
@@ -12,14 +12,29 @@ const previewLogs = { zhuzhu: emptyLog(previewBootstrap.today, 'zhuzhu'), xiaohu
 const previewSource = { recorded_by: 'zhuzhu' as const, request_id: 'preview-request', attachment_ids: [], recorded_at: '2026-09-02T09:00:00+08:00' };
 previewLogs.zhuzhu.training_status = 'partial'; previewLogs.zhuzhu.sets.push({ id: 'preview-set-1', exercise_id: 'preview-squat', equipment: null, load: 30, load_unit: 'kg', reps: 12, side: 'both', kind: 'work', source: previewSource });
 previewLogs.zhuzhu.nutrition_status = 'partial'; previewLogs.zhuzhu.meals.push({ id: 'preview-breakfast', meal: 'breakfast', items: [meal('preview-actual-oats', '燕麦粥', 60, 'g')], occurred_at: '2026-09-02T08:00:00+08:00', source: previewSource });
+previewLogs.zhuzhu.cardio.push({ id: 'preview-cardio', activity: '快走', duration_minutes: 30, distance_km: null, intensity: '轻松', occurred_at: '2026-09-02T18:00:00+08:00', notes: [], source: previewSource });
 previewLogs.zhuzhu.measurements.push({ id: 'preview-weight', metric: 'weight', value: 68.4, unit: 'kg', measured_at: '2026-09-02T07:30:00+08:00', notes: ['晨起空腹'], source: previewSource });
 const previewSnapshot: DaySnapshot = { revision: 'preview', date: previewBootstrap.today, plan: previewPlan, logs: previewLogs };
+const previewDates = ['2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02'];
+const previewReview: ReviewSnapshot = { revision: 'preview', start: previewDates[0], end: previewDates[6], days: previewDates.map((date, index) => {
+  const zhuzhu = emptyLog(date, 'zhuzhu'); const xiaohua = emptyLog(date, 'xiaohua');
+  const source = { ...previewSource, recorded_at: `${date}T09:00:00+08:00` };
+  if ([0, 2, 4, 6].includes(index)) { zhuzhu.nutrition_status = 'partial'; zhuzhu.meals.push({ id: `review-z-meal-${index}`, meal: 'breakfast', items: [meal(`review-z-food-${index}`, '燕麦粥', 60, 'g')], occurred_at: `${date}T08:00:00+08:00`, source }); }
+  if ([1, 3, 5].includes(index)) { xiaohua.nutrition_status = 'partial'; xiaohua.meals.push({ id: `review-x-meal-${index}`, meal: 'dinner', items: [meal(`review-x-food-${index}`, '牛肉与时蔬')], occurred_at: `${date}T18:30:00+08:00`, source }); }
+  if ([0, 3, 6].includes(index)) { zhuzhu.training_status = 'partial'; zhuzhu.sets.push({ id: `review-z-set-${index}`, exercise_id: 'preview-squat', equipment: '哑铃', load: 14, load_unit: 'kg', reps: 10, side: 'both', kind: 'work', source }); }
+  if ([2, 5].includes(index)) { xiaohua.training_status = 'partial'; xiaohua.sets.push({ id: `review-x-set-${index}`, exercise_id: 'preview-row', equipment: '哑铃', load: 8, load_unit: 'kg', reps: 10, side: 'both', kind: 'work', source }); }
+  if (index === 3) { zhuzhu.cardio.push({ id: 'review-cardio', activity: '椭圆机', duration_minutes: 35, distance_km: null, intensity: '中等', occurred_at: `${date}T17:20:00+08:00`, notes: [], source }); }
+  if ([0, 3, 6].includes(index)) zhuzhu.measurements.push({ id: `review-z-weight-${index}`, metric: 'weight', value: 68.8 - index * .07, unit: 'kg', measured_at: `${date}T07:30:00+08:00`, notes: [], source });
+  if ([3, 6].includes(index)) xiaohua.measurements.push({ id: `review-x-weight-${index}`, metric: 'weight', value: 52.1 - index * .05, unit: 'kg', measured_at: `${date}T07:40:00+08:00`, notes: [], source });
+  return { date, plan: index === 6 ? previewPlan : null, logs: { zhuzhu, xiaohua } };
+}) };
 const previewMessages: ThreadMessage[] = [{ id: 'preview-message', role: 'assistant', text: '想改哪里？告诉我就好。', attachment_ids: [], receipts: [], created_at: '2026-09-02T09:00:00+08:00', status: 'complete' }];
 
 export async function api<T>(input: string, init?: RequestInit): Promise<T> {
   if (preview) {
     if (input === '/api/bootstrap') return previewBootstrap as T;
     if (input.startsWith('/api/day')) return previewSnapshot as T;
+    if (input.startsWith('/api/review')) return previewReview as T;
     if (input === '/api/thread') return { messages: previewMessages } as T;
     throw new ApiError('预览中暂时不能保存', 403);
   }
@@ -31,4 +46,5 @@ export async function api<T>(input: string, init?: RequestInit): Promise<T> {
 
 export const getBootstrap = () => api<Bootstrap>('/api/bootstrap');
 export const getDay = (date: string) => api<DaySnapshot>(`/api/day?date=${encodeURIComponent(date)}`);
+export const getReview = (end: string) => api<ReviewSnapshot>(`/api/review?end=${encodeURIComponent(end)}`);
 export const getThread = () => api<{ messages: ThreadMessage[] }>('/api/thread');
