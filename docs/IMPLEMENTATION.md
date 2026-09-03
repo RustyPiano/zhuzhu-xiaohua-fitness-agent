@@ -11,6 +11,7 @@
 7. Exa 只提供固定 `web_search` 与 `web_read`：Search=`auto`/5 条/highlights，Contents=单 URL/text/maxAgeHours 24 或 0。响应按流限制为 2 MiB，正文截断为 20,000 字符。
 8. 联网调用先在请求元数据写入微美元预留，再发 HTTP；两人和 UI 任务共用 $8 提醒/$9 停止线。超时、取消或缺失成本不会按零计费。
 9. Agent 可在隔离 app 副本中检视全仓，Finalizer 只复制 `web/src` 与 `web/public` 到可信 Git worktree，其他路径不可发布。容器和宿主检查限制单文件、总大小与文件数。候选位于预览 origin 的 `/candidates/<job-id>/`，只使用构建时虚构数据；生产产物单独生成。发布和 `/ops` 回滚整体绑定源码 revision、产物路径与哈希，并通过操作记录和 Git trailer 恢复崩溃窗口。
+10. 运行时 Agent 不执行 `pnpm`。数据请求只走宿主业务校验；仅当 `web/src` 或 `web/public` 确有变化时才创建 UI worktree，固定检查为前端 TypeScript、生产构建和预览构建。整仓 typecheck/test/build 只用于开发者修改仓库或发布前验收。
 
 ## 部署步骤
 
@@ -28,7 +29,7 @@
 10. 用虚构营养标签执行一次真实视觉模型测试；执行一次真实 Exa Search 和一次 Contents；核对来源、正文、Exa 后台用量和本地预留。
    可用仅从环境读取凭据的 `pnpm test:integration` 重跑模型文字/图片/工具调用以及 Exa Search/Contents；该命令不进入 CI，也不使用真实身体资料。
 11. 用替身完成预算、402/429、超时、取消、重启和跨月测试。不得通过真实耗尽免费额度验证停止线。
-12. 构建一个 UI 候选，确认沙箱内看不到密钥、data-repo、runtime、主仓库 `.git` 或容器 socket；完成检查、隔离预览、发布和 `/ops` 回滚。
+12. 构建一个 UI 候选，确认沙箱内看不到密钥、data-repo、runtime、主仓库 `.git` 或容器 socket；确认只运行前端 TypeScript 和生产/预览构建，再完成隔离预览、发布和 `/ops` 回滚。
 13. 完成异机加密备份与恢复演练后，才导入两人确认归属的真实资料。
 
 ## 未配置时的降级

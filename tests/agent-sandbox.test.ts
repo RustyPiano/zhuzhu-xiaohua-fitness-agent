@@ -24,6 +24,7 @@ describe('Agent sandbox command', () => {
     const args = uiSandboxContainerArgs('/srv/fitness/runtime/ui-checks/candidate', 'fitness-agent-check:locked');
     expect(args).toContain(PODMAN_KEEP_ID); expect(args).toContain('--network=none'); expect(args).toContain('--cap-drop=ALL');
     expect(args.at(-1)).toContain('pnpm --config.verify-deps-before-run=false');
+    expect(args.at(-1)).toContain('tsconfig.web.json'); expect(args.at(-1)).not.toContain('pnpm test'); expect(args.at(-1)).not.toContain('tsconfig.server.json');
     expect(args).toContain('/srv/fitness/runtime/ui-checks/candidate:/workspace:Z');
     expect(args.join('\n')).not.toContain('/srv/fitness/data-repo'); expect(args.join('\n')).not.toContain('/etc/fitness-agent.env'); expect(args.join('\n')).not.toContain('podman.sock');
   });

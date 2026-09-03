@@ -82,7 +82,7 @@ export function createSandboxTools(pi: PiModule, workspace: AgentWorkspace): any
   } });
   const bash = pi.createBashToolDefinition(workspace.root, { exposeSessionEnvironment: false, operations: {
     exec: async (command, _cwd, options) => {
-      const result = await execute(workspace, ['sh', '-lc', 'pnpm() { command pnpm --config.verify-deps-before-run=false "$@"; }; test -e app/node_modules || ln -s /opt/project/node_modules app/node_modules; ' + command], { signal: options.signal, timeout: options.timeout, onData: options.onData });
+      const result = await execute(workspace, ['sh', '-lc', 'pnpm() { test -d /opt/project/node_modules || { echo "沙箱镜像缺少 /opt/project/node_modules" >&2; return 127; }; test -e app/node_modules || { rm -f app/node_modules && ln -s /opt/project/node_modules app/node_modules; }; command pnpm --config.verify-deps-before-run=false "$@"; }; ' + command], { signal: options.signal, timeout: options.timeout, onData: options.onData });
       return { exitCode: result.exitCode };
     },
   } });

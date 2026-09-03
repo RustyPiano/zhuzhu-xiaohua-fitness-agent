@@ -58,7 +58,7 @@ export async function runAgent(initial: RequestRecord, signal: AbortSignal): Pro
   });
   const abort = () => { void runtime.abort(); }; signal.addEventListener('abort', abort, { once: true });
   try {
-    const prompt = `可信请求上下文：actor=${initial.actor}（${PERSON_LABEL[initial.actor]}），request_id=${initial.id}，当前日期=${businessDate()}，data_base_revision=${workspace.dataBaseRevision}，app_base_revision=${workspace.appBaseRevision}。\n附件位于 inbox/，且已作为图像输入传入。直接读写 data/ 或 app/ 完成任务；不要声称已保存或已发布，宿主 Finalizer 会在你结束后处理。\n\n用户消息：${initial.text || '（仅发送了图片，请先询问用途）'}`;
+    const prompt = `可信上下文：登录者=${initial.actor}（${PERSON_LABEL[initial.actor]}），日期=${businessDate()}，request_id=${initial.id}。${images.length ? '\n附件在 inbox/，并已作为图像输入。' : ''}\n直接在工作区完成请求；宿主随后校验并生成回执。\n\n用户：${initial.text || '（仅发送了图片，请先询问用途）'}`;
     await runtime.prompt(prompt, { images });
     const data = initial.committed_revision ? null : await finalizeDataWorkspace(workspace, initial.actor, initial.id, initial.attachment_ids);
     if (data) {

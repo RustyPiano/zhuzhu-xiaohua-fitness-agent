@@ -1,15 +1,24 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const exec = promisify(execFile); let temporary = '';
-afterEach(async () => { if (temporary) await rm(temporary, { recursive: true, force: true }); for (const name of ['APP_REPO', 'RUNTIME_DIR', 'RELEASES_DIR']) delete process.env[name]; temporary = ''; vi.resetModules(); });
+afterEach(async () => { if (temporary) await rm(temporary, { recursive: true, force: true }); for (const name of ['APP_REPO', 'RUNTIME_DIR', 'RELEASES_DIR', 'UI_SANDBOX_IMAGE']) delete process.env[name]; temporary = ''; vi.resetModules(); });
 
 describe('UI releases', () => {
+  it('does not create a UI job when the Agent changed no frontend files', async () => {
+    temporary = await mkdtemp(path.join(os.tmpdir(), 'fitness-ui-no-change-')); const app = path.join(temporary, 'app'); const source = path.join(temporary, 'source'); const runtime = path.join(temporary, 'runtime');
+    await mkdir(path.join(app, 'web', 'src'), { recursive: true }); await writeFile(path.join(app, 'web', 'src', 'main.ts'), 'export {};\n');
+    await exec('git', ['init', '--initial-branch=main'], { cwd: app }); await exec('git', ['config', 'user.name', 'Test'], { cwd: app }); await exec('git', ['config', 'user.email', 'test@example.com'], { cwd: app }); await exec('git', ['add', '.'], { cwd: app }); await exec('git', ['commit', '-m', 'A'], { cwd: app });
+    await exec('git', ['clone', '--quiet', app, source]); process.env.APP_REPO = app; process.env.RUNTIME_DIR = runtime; process.env.RELEASES_DIR = path.join(temporary, 'releases'); process.env.UI_SANDBOX_IMAGE = 'test-image';
+    const ui = await import('../server/ui-jobs.js'); const result = await ui.importUiWorkspace('zhuzhu', 'request-12345678', 'data only', source, await ui.currentUiSourceRevision());
+    expect(result).toEqual({ job: null, ignored: [] }); await expect(stat(path.join(runtime, 'ui-worktrees'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('recovers a merged publish after deployment metadata was not written', async () => {
     temporary = await mkdtemp(path.join(os.tmpdir(), 'fitness-ui-recovery-')); const app = path.join(temporary, 'app'); const runtime = path.join(temporary, 'runtime'); const releases = path.join(temporary, 'releases'); const id = '12345678-1234-1234-1234-123456789abc';
     await mkdir(path.join(app, 'web', 'src'), { recursive: true }); await writeFile(path.join(app, 'web', 'src', 'main.ts'), 'export const version = "A";\n');

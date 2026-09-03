@@ -73,7 +73,7 @@ async function directoryHash(root: string): Promise<string> {
 
 export function uiSandboxContainerArgs(workspace: string, image: string): string[] {
   const pnpm = 'pnpm --config.verify-deps-before-run=false';
-  return ['run', '--rm', '--network=none', PODMAN_KEEP_ID, '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-v', `${workspace}:/workspace:Z`, '-w', '/workspace', image, 'sh', '-lc', `ln -s /opt/project/node_modules /workspace/node_modules && ${pnpm} typecheck && ${pnpm} test && ${pnpm} build && cp -R dist/web .candidate-production && VITE_PREVIEW_MODE=true ${pnpm} exec vite build`];
+  return ['run', '--rm', '--network=none', PODMAN_KEEP_ID, '--cap-drop=ALL', '--security-opt=no-new-privileges', '--pids-limit=256', '--memory=1g', '--cpus=2', '-v', `${workspace}:/workspace:Z`, '-w', '/workspace', image, 'sh', '-lc', `test -d /opt/project/node_modules || { echo "沙箱镜像缺少 /opt/project/node_modules" >&2; exit 127; }; ln -s /opt/project/node_modules /workspace/node_modules && ${pnpm} exec tsc -p tsconfig.web.json --noEmit && ${pnpm} exec vite build && cp -R dist/web .candidate-production && VITE_PREVIEW_MODE=true ${pnpm} exec vite build`];
 }
 
 export async function beginUiJob(actor: PersonId, requestId: string, summary: string, requestedBase?: string): Promise<UiJob> {
@@ -87,15 +87,8 @@ export async function beginUiJob(actor: PersonId, requestId: string, summary: st
   await saveJob(job); return job;
 }
 
-export async function writeUiFile(actor: PersonId, id: string, relative: string, content: string): Promise<UiJob> {
-  const job = await loadUiJob(id); if (job.actor !== actor) throw new Error('无权修改此候选'); if (!allowedUiPath(relative)) throw new Error('仅允许修改 web/src 和 web/public');
-  if (Buffer.byteLength(content) > 512_000) throw new Error('单个 UI 文件超过 512 KiB');
-  const target = path.join(job.worktree, relative); await mkdir(path.dirname(target), { recursive: true });
-  try { if ((await lstat(target)).isSymbolicLink()) throw new Error('不允许修改符号链接'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-  await writeFile(target, content, 'utf8'); job.status = 'editing'; job.source_hash = null; job.artifact_hash = null; job.checks = []; await saveJob(job); return job;
-}
-
 export async function importUiWorkspace(actor: PersonId, requestId: string, summary: string, source: string, base: string): Promise<{ job: UiJob | null; ignored: string[] }> {
+  if (!await command('git', ['status', '--porcelain', '--untracked-files=all'], source)) return { job: null, ignored: [] };
   const job = await beginUiJob(actor, requestId, summary, base);
   const ignoredPath = (name: string) => ['.git', 'node_modules', 'dist', '.local'].some((part) => name === part || name.startsWith(`${part}/`));
   const changed = await filesystemChanges(job.worktree, source, () => true, ignoredPath); const web = changed.filter(allowedUiPath); const ignored = changed.filter((name) => !allowedUiPath(name));
@@ -123,7 +116,7 @@ export async function checkUiJob(actor: PersonId, id: string): Promise<UiJob> {
     const sourceHash = await treeHash(job.worktree); const built = path.join(temporary, 'dist', 'web');
     await stat(built); const release = path.join(config.releasesDir, 'candidates', id); await rm(release, { recursive: true, force: true }); await mkdir(path.dirname(release), { recursive: true }); await cp(built, release, { recursive: true });
     await cp(path.join(temporary, '.candidate-production'), path.join(release, 'production'), { recursive: true });
-    job.status = 'passed'; job.source_hash = sourceHash; job.artifact_hash = await directoryHash(path.join(release, 'production')); job.checks = ['typecheck', 'unit tests', 'production build', 'preview build']; job.error = output.slice(-4_000) || null;
+    job.status = 'passed'; job.source_hash = sourceHash; job.artifact_hash = await directoryHash(path.join(release, 'production')); job.checks = ['web typecheck', 'production build', 'preview build']; job.error = output.slice(-4_000) || null;
   } catch (error) { job.status = 'failed'; job.error = error instanceof Error ? error.message : '检查失败'; }
   finally { await rm(temporary, { recursive: true, force: true }); await saveJob(job); }
   return job;
